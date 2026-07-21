@@ -17,7 +17,7 @@ Full design rationale: `../pokemon-battle-harness-plan.md`. Project rules: `CLAU
 ```bash
 python app.py            # play the default battle, one line per turn
 python app.py --quiet    # just the final result
-pytest                   # 24 tests: KB, damage, gate, full battle, RA transport, vision/OCR
+pytest                   # 34 tests: KB, damage, gate, full battle, RA transport, vision/OCR, LLM player, VisionBackend
 ```
 
 The vision path needs the optional `vision` extra (macOS): `pip install pillow
@@ -56,13 +56,14 @@ tests/       KB, damage, guardrails, full battle, retroarch transport, vision ob
 | Damage/stat math | ✅ Gen 1 formula, single Special stat, category-by-type, deterministic |
 | Observe / act | ✅ `read_battle` + `send_input` over the Backend protocol |
 | Guardrail gate | ✅ legality + quality, logs every block |
-| Players | ✅ HeuristicPlayer · ⬜ LLMPlayer (stub) |
+| Players | ✅ HeuristicPlayer · ✅ LLMPlayer (Claude API or local llama.cpp; heuristic fallback) |
 | mock backend | ✅ deterministic 3v3, resolves to a winner |
+| vision backend | ◑ `VisionBackend` plays the REAL game (OCR state + keyboard act); logic tested, live run needs calibration |
 | retroarch backend | ◑ UDP memory client works; RAM map + input TODO |
 | project64 backend | ⬜ stub (needs JS-script bridge) |
-| Vision observe (OCR) | ◑ `read_screen` → names + self HP, real Apple Vision OCR verified; layout uncalibrated, struct partial |
-| Vision act (keyboard) | ◑ `world/keyboard.py` posts key events → RetroArch RetroPad; needs live emulator + Accessibility perm |
-| Tests | ✅ 24 passing (`pytest`) |
+| Vision observe (OCR) | ◑ `read_screen` → names + self HP, real Apple Vision OCR verified; layout uncalibrated |
+| Vision act (keyboard) | ◑ `world/keyboard.py` → RetroArch RetroPad; keystroke maps need calibration + Accessibility perm |
+| Tests | ✅ 34 passing (`pytest`) |
 
 `python app.py` plays a full, sensible, deterministic battle (player wins the
 default matchup in 8 turns, 0 gate blocks).

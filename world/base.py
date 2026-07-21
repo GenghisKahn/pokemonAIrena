@@ -52,4 +52,10 @@ def make_backend(cfg: dict) -> Backend:
     if name == "retroarch":
         from world.retroarch import RetroArchBackend
         return RetroArchBackend(cfg)
-    raise ValueError(f"unknown world.backend: {name!r} (expected 'mock', 'project64', or 'retroarch')")
+    if name == "vision":
+        from world.vision import VisionBackend
+        return VisionBackend(cfg)
+    raise ValueError(
+        f"unknown world.backend: {name!r} "
+        "(expected 'mock', 'project64', 'retroarch', or 'vision')"
+    )

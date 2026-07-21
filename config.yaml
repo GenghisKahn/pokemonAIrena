@@ -1,12 +1,15 @@
 # Default battle + harness configuration. One battle, best team standing wins.
 
 world:
-  backend: mock            # mock (in-memory, default) | project64 | retroarch
+  backend: mock            # mock (in-memory, default) | project64 | retroarch | vision
   level: 50                # Stadium-style level cap for the mock engine
   # emulator-only connection (ignored for mock)
   retroarch:
     host: 127.0.0.1
     port: 55355            # RetroArch Network Control Interface (UDP)
+  vision:                  # backend: vision — play the REAL game via screen OCR + keyboard
+    region: null           # capture rect [x, y, w, h] in screen points; null = whole display
+    turn_wait: 4.0         # seconds to let a turn animate after a keystroke
   project64:
     host: 127.0.0.1
     port: 8082             # local bridge exposed by the Project64 script
@@ -29,7 +32,13 @@ guardrails:
 
 agent:
   player: heuristic        # heuristic (deterministic, no API) | llm
-  model: claude-sonnet-5   # used only when player: llm
+  # --- used only when player: llm ---
+  provider: claude         # claude (Anthropic API) | llamacpp (local server)
+  model: claude-haiku-4-5  # claude: model id (Haiku = low cost) | llamacpp: served name
+  max_tokens: 64           # a move pick is one short line
+  llamacpp:                # local llama.cpp server (llama-server), OpenAI-compatible
+    host: 127.0.0.1
+    port: 8080
   token_budget: 50000
 
 run:

@@ -39,15 +39,41 @@ A second observe/act approach that needs no RAM map: read the screen, drive the 
 - Deps live behind the `vision` extra (pillow + pyobjc Vision/Quartz). **Installed in this
   env; all 24 tests pass** including the two real-Apple-Vision OCR tests (`test_ocr.py`).
 
-### Vision path — next
-1. **Calibrate `vision/layout.py`** against a real Stadium battle frame (`ocr_probe.py
-   --region ... --regions`). Needs the emulator running (user's machine).
-2. **Extend `read_screen()`** past names+self-HP to the full struct: opp HP, the 4 moves +
-   PP, status, and a menu-state read for turn detection.
-3. **`VisionBackend` in `world/`** — stitch capture→observe (state) + keyboard (act) into the
-   `Backend` protocol so `harness/loop.py` runs against live RetroArch, no RAM map.
-4. **Turn detection from the screen** — the hard part; detect "awaiting move menu" from
-   pixels/OCR rather than a menu byte.
+### VisionBackend (step 3) — DONE (unverified live)
+- `world/vision.py::VisionBackend` — plays the REAL game with no RAM map. Key design: the
+  static roster (species/movepools/PP/base stats) comes from `config.battle` (you don't OCR
+  your own team); OCR tracks only the dynamic state (active mon by name→roster match, your
+  HP, menu). Emits the same snapshot shape as mock, so `read_battle`/the loop are unchanged.
+  Act via `world/keyboard.py` keystrokes; `_MOVE_KEYS`/`_switch_keys` are CALIBRATE points.
+- `world/base.py` factory: `backend: vision`. `config.yaml world.vision{region, turn_wait}`.
+- `tests/test_vision_backend.py` — 5 tests (fake OCR + fake keyboard, no emulator): roster
+  from config, OCR→active+HP sync, snapshot feeds read_battle, move→keystroke map, bad-read
+  keeps state. 34 tests pass.
+
+### Vision path — remaining (needs the emulator on the user's machine)
+1. **Calibrate `vision/layout.py`** against a real Stadium frame (`ocr_probe.py --region
+   ... --regions`) — the region boxes are still guesses.
+2. **Calibrate keystroke maps** — verify `_MOVE_KEYS` (2×2 move grid) and `_switch_keys`
+   against the actual Stadium menu flow + RetroArch binds; grant Accessibility permission.
+3. **Refine turn detection** — `awaiting_input()` currently infers "in battle" from the
+   active-name region; add a dedicated move-menu region once layout is calibrated.
+4. **Opp HP / status** — OCR of the opponent's HP bar is unreliable; opp HP is tracked
+   best-effort (starts full). The agent still gets the type matchup, the main signal.
+
+## LLMPlayer (step 5) — DONE
+- `agent/providers.py` — pluggable providers behind `complete(system, user) -> str`:
+  `ClaudeProvider` (Anthropic SDK, default `claude-haiku-4-5`, SDK default credential
+  resolution) and `LlamaCppProvider` (local `llama-server`, OpenAI-compatible
+  `/v1/chat/completions`, stdlib urllib, no dep, no cost).
+- `agent/player.py::LLMPlayer` — builds a compact BattleState prompt (legal moves with
+  type/eff/est-dmg + legal switches), parses `move N` / `switch N`, validates against
+  legal options, and falls back to HeuristicPlayer on any unparseable/illegal/error reply.
+- `config.yaml` agent: `provider` (claude|llamacpp), `model`, `max_tokens`, `llamacpp{host,port}`.
+- `tests/test_llm_player.py` — 5 tests (fake provider): valid pick used, prompt lists
+  options, illegal/unparseable/provider-error all fall back to heuristic. 29 tests pass.
+- CAVEAT: the Anthropic **API is metered per token** — a Claude Pro/Max *subscription*
+  covers claude.ai + Claude Code, not raw Messages API calls. The zero-arg client uses
+  whatever auth is configured (ANTHROPIC_API_KEY or an `ant auth login` OAuth profile).
 
 ## Next (build order)
 - **Step 2 — RAM map.** Fill `world/retroarch.py::_ADDR` with the Stadium battle-struct
