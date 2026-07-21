@@ -22,14 +22,16 @@ def _cfg():
 
 
 class _FakeOCR:
-    """read_screen calls recognize() 3x per read: self_hp, self_name, opp_name."""
-    def __init__(self, self_hp, self_name, opp_name):
-        self._texts = [self_hp, self_name, opp_name]
+    """Returns canned text per recognize() call, in call order. A full snapshot()
+    makes 3 read_screen calls (self_hp, self_name, opp_name) then up to 4 read_moves
+    calls (move_0..move_3). Exhausted calls repeat the last text."""
+    def __init__(self, texts):
+        self._texts = list(texts)
         self._i = 0
 
     def recognize(self, _img):
         from vision.ocr import OCRResult
-        t = self._texts[self._i % len(self._texts)]
+        t = self._texts[min(self._i, len(self._texts) - 1)]
         self._i += 1
         return [OCRResult(t, 0.9, (0.0, 0.0, 1.0, 1.0))]
 
@@ -45,10 +47,10 @@ class _FakeKeyboard:
         self.presses.append([button])
 
 
-def _backend(self_hp="120 / 166", self_name="STARMIE", opp_name="SNORLAX", kb=None):
-    # Avoid real screen capture: stub _frame so _sync_from_screen has an image to OCR.
-    b = VisionBackend(_cfg(), ocr=_FakeOCR(self_hp, self_name, opp_name),
-                      keyboard=kb or _FakeKeyboard())
+def _backend(self_hp="120 / 166", self_name="STARMIE", opp_name="SNORLAX",
+             moves=None, kb=None):
+    texts = [self_hp, self_name, opp_name] + (moves or [])
+    b = VisionBackend(_cfg(), ocr=_FakeOCR(texts), keyboard=kb or _FakeKeyboard())
     b._frame = lambda: Image.new("RGB", (16, 16))   # stub capture; fake OCR ignores content
     return b
 
@@ -71,14 +73,17 @@ def test_sync_matches_active_and_updates_hp():
     assert b.teams[1][b.active[1]].name == "Rhydon"
 
 
-def test_snapshot_feeds_read_battle():
+def test_snapshot_reads_moves_from_menu():
     from kb import default_kb
-    b = _backend(self_hp="120 / 166", self_name="STARMIE", opp_name="SNORLAX")
+    # Moves come from the on-screen menu (OCR), resolved via the KB — not config.
+    b = _backend(self_hp="120 / 166", self_name="STARMIE", opp_name="SNORLAX",
+                 moves=["SURF", "BLIZZARD", "THUNDERBOLT", "PSYCHIC"])
     state = read_battle(b, default_kb(), level=50)
     assert state.self_active.name == "Starmie"
     assert state.self_active.hp == 120
     assert state.opp_active.name == "Snorlax"
-    assert state.available_moves  # Starmie's moves are known from config, PP > 0
+    assert [state.self_active.moves[i].name for i in state.available_moves] == \
+        ["Surf", "Blizzard", "Thunderbolt", "Psychic"]
 
 
 def test_move_action_maps_to_keystrokes():

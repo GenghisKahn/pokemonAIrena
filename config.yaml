@@ -1,7 +1,7 @@
 # Default battle + harness configuration. One battle, best team standing wins.
 
 world:
-  backend: mock            # mock (in-memory, default) | project64 | retroarch | vision
+  backend: vision            # mock (in-memory, default) | project64 | retroarch | vision
   level: 50                # Stadium-style level cap for the mock engine
   # emulator-only connection (ignored for mock)
   retroarch:
@@ -10,12 +10,16 @@ world:
   vision:                  # backend: vision — play the REAL game via screen OCR + keyboard
     region: null           # capture rect [x, y, w, h] in screen points; null = whole display
     turn_wait: 4.0         # seconds to let a turn animate after a keystroke
+    ocr: auto              # auto (Vision on macOS, Tesseract elsewhere) | vision | tesseract
+    keyboard: auto         # auto (by platform) | mac (Quartz) | windows (SendInput)
   project64:
     host: 127.0.0.1
     port: 8082             # local bridge exposed by the Project64 script
 
 battle:
-  # Illustrative rental-style teams. Species + moves must exist in src/kb/.
+  # Species + moves must exist in kb/. For the vision backend your MOVES are read
+  # live off the move menu (config moves are just a seed) — species still matter for
+  # matching the active mon. For the mock backend these teams ARE the battle.
   # (Movepools here are for a playable demo, not competitive legality.)
   player_team:
     - {species: Starmie,   moves: [Surf, Blizzard, Thunderbolt, Psychic]}
@@ -31,7 +35,7 @@ guardrails:
   warn_bad_switch: true    # flag switching a mon into a super-effective hit
 
 agent:
-  player: heuristic        # heuristic (deterministic, no API) | llm
+  player: llm        # heuristic (deterministic, no API) | llm
   # --- used only when player: llm ---
   provider: claude         # claude (Anthropic API) | llamacpp (local server)
   model: claude-haiku-4-5  # claude: model id (Haiku = low cost) | llamacpp: served name

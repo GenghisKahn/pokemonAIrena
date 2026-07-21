@@ -50,6 +50,22 @@ A second observe/act approach that needs no RAM map: read the screen, drive the 
   from config, OCR→active+HP sync, snapshot feeds read_battle, move→keystroke map, bad-read
   keeps state. 34 tests pass.
 
+### Vision path — move OCR + cross-platform (DONE)
+- **Move-menu OCR** — `vision/observe.py`: `match_move` (fuzzy, space/case-tolerant),
+  `read_moves` (4 slots → KB move names, skips empties), `menu_open` (lenient turn
+  detector). VisionBackend now reads YOUR moves off the menu and resolves them via the
+  KB — config moves are just a seed. `UnknownMoveError` fails loudly (names slot + raw
+  text) when OCR reads a move not in `kb/moves.json`.
+- **Cross-platform OCR** — `vision/ocr.py`: `TesseractOCR` (pytesseract, Win/Linux/mac)
+  alongside `VisionOCR` (mac). `default_ocr(engine)`; `config world.vision.ocr` =
+  auto|vision|tesseract. Deps split: `vision` extra now cross-platform, `vision-macos`
+  holds pyobjc (platform-markered).
+- **Cross-platform keyboard** — `world/keyboard.py`: `MacKeyboard` (Quartz) +
+  `WindowsKeyboard` (SendInput scancodes, stdlib ctypes). `make_keyboard(driver)`;
+  `config world.vision.keyboard` = auto|mac|windows.
+- `requirements.txt` added (mirrors pyproject extras). 47 tests pass.
+- NOTE: still unverified against a live emulator; regions + keystroke maps need calibration.
+
 ### Vision path — remaining (needs the emulator on the user's machine)
 1. **Calibrate `vision/layout.py`** against a real Stadium frame (`ocr_probe.py --region
    ... --regions`) — the region boxes are still guesses.

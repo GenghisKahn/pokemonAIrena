@@ -1,0 +1,26 @@
+# Full install for the Pokémon Stadium battle harness.
+#   pip install -r requirements.txt
+# Source of truth is pyproject.toml [project.optional-dependencies]; this mirrors
+# them as a flat list. The heuristic player + mock backend run on the core dep alone.
+
+# --- core (always required) ---
+pyyaml>=6.0
+
+# --- vision OCR (cross-platform: Windows / Linux / macOS) ---
+# The 'tesseract' engine also needs the Tesseract *binary* on PATH:
+#   Windows: winget install UB-Mannheim.TesseractOCR   (or: choco install tesseract)
+#   macOS:   brew install tesseract
+#   Linux:   apt-get install tesseract-ocr
+pillow>=10
+pytesseract>=0.3
+
+# --- LLM player (optional; falls back to the heuristic player without it) ---
+anthropic>=0.34
+
+# --- macOS only: Apple Vision OCR + Quartz keyboard (skipped off macOS) ---
+pyobjc-framework-Vision>=10; sys_platform == "darwin"
+pyobjc-framework-Quartz>=10; sys_platform == "darwin"
+
+# --- dev / test ---
+pytest>=8.2
+ruff>=0.5

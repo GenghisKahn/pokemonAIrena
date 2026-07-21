@@ -26,8 +26,8 @@ from battle.damage import battle_stats
 from battle.state import Action
 from kb import KB, default_kb
 from vision import layout as _layout
-from vision.capture import capture_region, crop_norm
-from vision.observe import match_species, read_screen
+from vision.capture import capture_region
+from vision.observe import menu_open, read_moves, read_screen
 
 # Move menu is a 2x2 grid; cursor rests on slot 0 (top-left) when the menu opens.
 # RetroPad button sequence to land on each slot and confirm. CALIBRATE to your ROM.
@@ -40,7 +40,9 @@ _MOVE_KEYS = {
 
 
 class _Mon:
-    """A roster entry: static team data + a mutable current-HP the OCR read updates."""
+    """A roster entry: species-derived stats (KB) + mutable HP and moves the OCR
+    read updates. Moves are optional here — for the vision backend they're read live
+    off the move menu; the config list is only a seed/fallback."""
     def __init__(self, kb: KB, species: str, move_names: list[str], level: int):
         sp = kb.species(species)
         self.name = species
@@ -73,7 +75,13 @@ class VisionBackend:
 
     # ---- roster (static, from config) --------------------------------------
     def _team(self, spec: list) -> list[_Mon]:
-        return [_Mon(self.kb, e["species"], e["moves"], self.level) for e in spec]
+        # Moves optional: the vision backend reads yours off the move menu (config
+        # moves are only a seed until the first menu read).
+        return [_Mon(self.kb, e["species"], e.get("moves", []), self.level) for e in spec]
+
+    def _move_entry(self, name: str) -> dict:
+        m = self.kb.move(name)
+        return {"name": name, "pp": m["pp"], "type": m["type"]}
 
     def reset(self) -> None:
         b = self.cfg["battle"]
@@ -85,27 +93,27 @@ class VisionBackend:
     def _ocr_engine(self):
         if self._ocr is None:
             from vision.ocr import default_ocr
-            self._ocr = default_ocr()
+            engine = self.cfg["world"].get("vision", {}).get("ocr", "auto")
+            self._ocr = default_ocr(engine)
         return self._ocr
 
     def _keyboard(self):
         if self._kb_input is None:
-            from world import keyboard
-            keyboard.activate_retroarch()
-            self._kb_input = keyboard
+            from world.keyboard import make_keyboard
+            kb = make_keyboard(self.cfg["world"].get("vision", {}).get("keyboard", "auto"))
+            kb.activate()
+            self._kb_input = kb
         return self._kb_input
 
     def _frame(self):
         return capture_region(self.region)
 
     # ---- observe -----------------------------------------------------------
-    def _sync_from_screen(self) -> dict:
-        """OCR the frame; update actives + your HP from what's on screen.
-
-        Returns the raw read so awaiting_input()/snapshot() can reuse it without a
-        second capture. Unmatched reads leave the last-known state intact (a missed
-        frame must not corrupt the battle state)."""
-        img = self._frame()
+    def _sync_from_screen(self, img=None) -> dict:
+        """OCR one frame; update actives + your HP. Unmatched reads leave the
+        last-known state intact (a missed frame must not corrupt the battle state)."""
+        if img is None:
+            img = self._frame()
         obs = read_screen(img, self._ocr_engine(), self.kb, self.regions)
         self._match_active(0, obs["self"]["name"])
         self._match_active(1, obs["opp"]["name"])
@@ -123,15 +131,21 @@ class VisionBackend:
                 return
 
     def snapshot(self) -> dict:
-        self._sync_from_screen()
+        img = self._frame()
+        self._sync_from_screen(img)
         me = self.teams[0][self.active[0]]
+        # Your moves come from the on-screen menu, resolved through the KB — not config.
+        # read_moves raises UnknownMoveError if a slot's text isn't in kb/moves.json.
+        move_names = read_moves(img, self._ocr_engine(), self.kb, _layout.MOVES)
+        if move_names:
+            me.moves = [self._move_entry(n) for n in move_names]
         opp = self.teams[1][self.active[1]]
         party = [
             {"dex": m.dex, "hp": m.hp, "max_hp": m.max_hp, "status": m.status}
             for i, m in enumerate(self.teams[0]) if i != self.active[0]
         ]
         return {
-            "awaiting": "move" if self.awaiting_input() else None,
+            "awaiting": "move" if move_names else None,
             "self": {
                 "dex": me.dex, "hp": me.hp, "max_hp": me.max_hp, "status": me.status,
                 "stages": {},
@@ -142,15 +156,10 @@ class VisionBackend:
         }
 
     def awaiting_input(self) -> bool:
-        """The game awaits a move when the move-menu region shows the active's moves."""
-        img = self._frame()
-        text = " ".join(
-            r.text for r in self._ocr_engine().recognize(crop_norm(img, self.regions["self_name"]))
-        )
-        # Heuristic: a battle frame that reads the active's name is in-battle; refine
-        # with a dedicated move-menu region once layout.py is calibrated (see docstring).
-        me = self.teams[0][self.active[0]]
-        return bool(match_species(text, self.kb) == me.name) and not self.is_over()
+        """The game awaits a move when the move-select menu is on screen — detected
+        by any move slot resolving to a KB move (lenient; never raises)."""
+        return menu_open(self._frame(), self._ocr_engine(), self.kb, _layout.MOVES) \
+            and not self.is_over()
 
     # ---- act ---------------------------------------------------------------
     def send_action(self, action: Action) -> None:

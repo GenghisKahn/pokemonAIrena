@@ -10,8 +10,14 @@ dependencies = [
 [project.optional-dependencies]
 # LLM-backed player. Without this, the deterministic heuristic player is used.
 agent = ["anthropic>=0.34"]
-# OCR + keyboard input path (macOS): on-device Vision OCR, Quartz key events.
-vision = ["pillow>=10", "pyobjc-framework-Vision>=10", "pyobjc-framework-Quartz>=10"]
+# OCR path — cross-platform (Windows / Linux / macOS): Pillow + Tesseract binding.
+# The Tesseract *binary* is a separate install (see vision/ocr.py TesseractOCR).
+vision = ["pillow>=10", "pytesseract>=0.3"]
+# macOS extras: on-device Apple Vision OCR + Quartz key events (skipped off macOS).
+vision-macos = [
+    "pyobjc-framework-Vision>=10; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz>=10; sys_platform == 'darwin'",
+]
 dev = ["pytest>=8.2", "ruff>=0.5"]
 
 [project.scripts]

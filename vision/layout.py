@@ -18,3 +18,14 @@ BATTLE: dict[str, tuple[float, float, float, float]] = {
     "self_name": (0.59, 0.70, 0.36, 0.10),
     "self_hp":   (0.59, 0.80, 0.36, 0.08),   # your side usually shows numeric HP
 }
+
+# Move-select menu: the four move names, in slot order (index 0-3 == send_input slot).
+# STARTING GUESSES for Stadium's move list — calibrate with:
+#   python scripts/ocr_probe.py --region ... --regions
+# against the move-select screen (not the idle battle frame).
+MOVES: dict[str, tuple[float, float, float, float]] = {
+    "move_0": (0.08, 0.74, 0.40, 0.06),
+    "move_1": (0.08, 0.80, 0.40, 0.06),
+    "move_2": (0.08, 0.86, 0.40, 0.06),
+    "move_3": (0.08, 0.92, 0.40, 0.06),
+}
