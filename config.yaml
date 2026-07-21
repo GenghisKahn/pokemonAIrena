@@ -9,8 +9,11 @@ world:
     port: 55355            # RetroArch Network Control Interface (UDP)
   vision:                  # backend: vision — play the REAL game via screen OCR + keyboard
     region: null           # capture rect [x, y, w, h] in screen points; null = whole display
-    turn_wait: 4.0         # seconds to let a turn animate after a keystroke
-    capture: auto          # auto (screencapture on macOS, ImageGrab elsewhere) | screencapture | imagegrab
+    turn_wait: 4.0         # seconds to let a turn animate after a move is confirmed
+    menu_wait: 0.6         # seconds to let the move menu animate in after pressing A
+    poll: 0.3              # seconds between screen polls while waiting for the next turn
+    capture: window        # window (capture RetroArch by identity — move/resize freely) | auto | screencapture | imagegrab
+    window: RetroArch      # window-title substring to capture (used when capture: window; macOS)
     ocr: auto              # auto (Vision on macOS, Tesseract elsewhere) | vision | tesseract
     keyboard: auto         # auto (by platform) | mac (Quartz) | windows (SendInput)
   project64:

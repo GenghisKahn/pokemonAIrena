@@ -1,22 +1,23 @@
 """vision — a Backend that plays the REAL Pokemon Stadium on RetroArch, no RAM map.
 
-The split that makes this tractable: a battle's *static* roster (species, movepools,
-PP, base stats) is known before the match from config.yaml — you don't OCR your own
-team. Vision only tracks the *dynamic* state that changes turn to turn:
+Turn model (what a human sees each turn):
+  1. The ACTION menu appears — "A BATTLE  B POKéMON  S RUN" — with both Pokémon panels
+     (species + HP) visible. This is the reliable turn start.
+  2. To attack: press A (BATTLE), the move list opens, pick a move, confirm.
 
-  * which Pokemon is active on each side  (OCR the name, match it to the roster)
-  * your active's current HP               (OCR the HP number)
-  * whether the game awaits a move          (OCR the move-menu region for known moves)
+So each turn the harness: detects the action menu (awaiting_input), reads BOTH actives
+off the panels, presses A to open the moves, reads them (resolved via the KB), the agent
+picks, and the keystrokes navigate the open move menu. Because the KB knows all 151, it
+reads whoever is on screen — no team setup in config.yaml needed.
 
-State (observe) comes from `vision/` (capture + Apple Vision OCR); actions (act) go out
-through `world/keyboard.py` as RetroArch RetroPad keystrokes. read_battle() sees the
-same snapshot shape as the mock, so the harness loop is unchanged.
+State (observe) comes from `vision/` (window capture + OCR); actions (act) go out through
+`world/keyboard.py`. read_battle() sees the same snapshot shape as the mock.
 
-⚠️ CALIBRATE before trusting a live run (none of this is verifiable headless):
-  1. `python scripts/ocr_probe.py --region x,y,w,h --regions` to line up vision/layout.py
-     against a real Stadium battle frame.
-  2. Grant Accessibility permission to your terminal (keyboard events; see world/keyboard.py).
-  3. Check the move-menu / switch-menu keystroke maps below against your RetroArch binds.
+⚠️ CALIBRATE before a live run (not verifiable headless):
+  * ACTION regions in vision/layout.py are calibrated to a 1194x1228 window; MOVES are
+    still guesses — align them from a move-select frame (scripts/ocr_probe.py).
+  * _MOVE_KEYS below assumes the move menu's layout; verify against the real menu.
+  * Grant Screen Recording (capture) + Accessibility (keystrokes) to your terminal.
 """
 from __future__ import annotations
 
@@ -24,77 +25,46 @@ import time
 
 from battle.damage import battle_stats
 from battle.state import Action
-from kb import KB, default_kb
+from kb import default_kb
 from vision import layout as _layout
 from vision.capture import capture_region
-from vision.observe import menu_open, read_moves, read_screen
+from vision.observe import action_menu_open, read_moves, read_panels
 
-# Move menu is a 2x2 grid; cursor rests on slot 0 (top-left) when the menu opens.
-# RetroPad button sequence to land on each slot and confirm. CALIBRATE to your ROM.
+# Move menu navigation, from the menu already opened by pressing A. Cursor starts on
+# slot 0; the trailing "a" confirms. CALIBRATE to Stadium's actual move layout.
 _MOVE_KEYS = {
-    0: ["a"],                       # top-left
-    1: ["right", "a"],              # top-right
-    2: ["down", "a"],               # bottom-left
-    3: ["down", "right", "a"],      # bottom-right
+    0: ["a"],
+    1: ["down", "a"],
+    2: ["down", "down", "a"],
+    3: ["down", "down", "down", "a"],
 }
 
 
-class _Mon:
-    """A roster entry: species-derived stats (KB) + mutable HP and moves the OCR
-    read updates. Moves are optional here — for the vision backend they're read live
-    off the move menu; the config list is only a seed/fallback."""
-    def __init__(self, kb: KB, species: str, move_names: list[str], level: int):
-        sp = kb.species(species)
-        self.name = species
-        self.dex = sp["dex"]
-        self.types = tuple(sp["types"])
-        stats = battle_stats(sp["base"], level)
-        self.max_hp = stats["hp"]
-        self.hp = stats["hp"]
-        self.status: str | None = None
-        self.moves = [
-            {"name": mn, "pp": kb.move(mn)["pp"], "type": kb.move(mn)["type"]}
-            for mn in move_names
-        ]
-
-
 class VisionBackend:
-    """Observe Stadium via OCR, act via the keyboard. Static roster + dynamic OCR."""
+    """Observe Stadium via OCR (window capture), act via the keyboard. Reads whoever
+    is on screen through the KB — no config roster required."""
 
     def __init__(self, cfg: dict, ocr=None, keyboard=None):
         self.cfg = cfg
         self.kb = default_kb()
         self.level = cfg["world"].get("level", 50)
         v = cfg["world"].get("vision", {})
-        self.region = tuple(v["region"]) if v.get("region") else None   # capture rect (points)
-        self.regions = _layout.BATTLE
-        # Injected for tests; built lazily on a real run so no OCR engine is needed to import.
+        self.region = tuple(v["region"]) if v.get("region") else None
         self._ocr = ocr
         self._kb_input = keyboard
         self.reset()
 
-    # ---- roster (static, from config) --------------------------------------
-    def _team(self, spec: list) -> list[_Mon]:
-        # Moves optional: the vision backend reads yours off the move menu (config
-        # moves are only a seed until the first menu read).
-        return [_Mon(self.kb, e["species"], e.get("moves", []), self.level) for e in spec]
-
-    def _move_entry(self, name: str) -> dict:
-        m = self.kb.move(name)
-        return {"name": name, "pp": m["pp"], "type": m["type"]}
-
     def reset(self) -> None:
-        b = self.cfg["battle"]
-        self.teams = [self._team(b["player_team"]), self._team(b["opponent_team"])]
-        self.active = [0, 0]
+        self._self = None   # {dex, name, max_hp, hp, moves:[{name,pp,type}]}
+        self._opp = None
         self.pending: Action | None = None
+        self._done = False
 
     # ---- dependencies (lazy on real runs) ----------------------------------
     def _ocr_engine(self):
         if self._ocr is None:
             from vision.ocr import default_ocr
-            engine = self.cfg["world"].get("vision", {}).get("ocr", "auto")
-            self._ocr = default_ocr(engine)
+            self._ocr = default_ocr(self.cfg["world"].get("vision", {}).get("ocr", "auto"))
         return self._ocr
 
     def _keyboard(self):
@@ -106,88 +76,90 @@ class VisionBackend:
         return self._kb_input
 
     def _frame(self):
-        backend = self.cfg["world"].get("vision", {}).get("capture", "auto")
-        return capture_region(self.region, backend)
+        v = self.cfg["world"].get("vision", {})
+        return capture_region(self.region, v.get("capture", "auto"), v.get("window", "RetroArch"))
 
     # ---- observe -----------------------------------------------------------
-    def _sync_from_screen(self, img=None) -> dict:
-        """OCR one frame; update actives + your HP. Unmatched reads leave the
-        last-known state intact (a missed frame must not corrupt the battle state)."""
-        if img is None:
-            img = self._frame()
-        obs = read_screen(img, self._ocr_engine(), self.kb, self.regions)
-        self._match_active(0, obs["self"]["name"])
-        self._match_active(1, obs["opp"]["name"])
-        me = self.teams[0][self.active[0]]
-        if obs["self"]["hp"] is not None:
-            me.hp = max(0, min(me.max_hp, obs["self"]["hp"]))
-        return obs
+    def awaiting_input(self) -> bool:
+        if self._done:
+            return False
+        return action_menu_open(self._frame(), self._ocr_engine(), self.kb, _layout.ACTION)
 
-    def _match_active(self, side: int, name: str | None) -> None:
-        if not name:
-            return
-        for i, mon in enumerate(self.teams[side]):
-            if mon.name == name:
-                self.active[side] = i
-                return
+    def _update_active(self, attr: str, o: dict) -> None:
+        """Build/refresh a cached active from an OCR'd {name, hp, max_hp} via the KB.
+        A missed name keeps the last-known mon (only HP updates); a resolved name that
+        matches the current mon preserves its already-read moves."""
+        cur = getattr(self, attr)
+        name = o.get("name")
+        if name:
+            sp = self.kb.species(name)
+            max_hp = battle_stats(sp["base"], self.level)["hp"]
+            same = cur is not None and cur["name"] == name
+            hp = o["hp"] if o.get("hp") is not None else (cur["hp"] if same else max_hp)
+            setattr(self, attr, {
+                "dex": sp["dex"], "name": name, "max_hp": max_hp,
+                "hp": max(0, min(max_hp, hp)),
+                "moves": cur["moves"] if same else [],
+            })
+        elif cur is not None and o.get("hp") is not None:
+            cur["hp"] = max(0, min(cur["max_hp"], o["hp"]))
+
+    def _move_entry(self, name: str) -> dict:
+        m = self.kb.move(name)
+        return {"name": name, "pp": m["pp"], "type": m["type"]}
 
     def snapshot(self) -> dict:
-        img = self._frame()
-        self._sync_from_screen(img)
-        me = self.teams[0][self.active[0]]
-        # Your moves come from the on-screen menu, resolved through the KB — not config.
-        # read_moves raises UnknownMoveError if a slot's text isn't in kb/moves.json.
-        move_names = read_moves(img, self._ocr_engine(), self.kb, _layout.MOVES)
+        v = self.cfg["world"].get("vision", {})
+        # 1. Read both actives off the action-menu panels.
+        panels = read_panels(self._frame(), self._ocr_engine(), self.kb, _layout.ACTION)
+        self._update_active("_self", panels["self"])
+        self._update_active("_opp", panels["opp"])
+        if self._self is None or self._opp is None:
+            raise RuntimeError(
+                "Could not read both Pokémon from the action panels — calibrate "
+                "opp_name/self_name in vision/layout.py (ACTION)."
+            )
+        # 2. Open the move list (BATTLE = A) and read it via the KB.
+        self._keyboard().press("a")
+        time.sleep(v.get("menu_wait", 0.6))          # let the move menu animate in
+        move_names = read_moves(self._frame(), self._ocr_engine(), self.kb, _layout.MOVES)
         if move_names:
-            me.moves = [self._move_entry(n) for n in move_names]
-        opp = self.teams[1][self.active[1]]
-        party = [
-            {"dex": m.dex, "hp": m.hp, "max_hp": m.max_hp, "status": m.status}
-            for i, m in enumerate(self.teams[0]) if i != self.active[0]
-        ]
-        return {
-            "awaiting": "move" if move_names else None,
-            "self": {
-                "dex": me.dex, "hp": me.hp, "max_hp": me.max_hp, "status": me.status,
-                "stages": {},
-                "moves": [{"name": mv["name"], "pp": mv["pp"]} for mv in me.moves],
-            },
-            "self_party": party,
-            "opp": {"dex": opp.dex, "hp": opp.hp, "max_hp": opp.max_hp, "status": opp.status},
-        }
+            self._self["moves"] = [self._move_entry(n) for n in move_names]
+        return self._build_snapshot()
 
-    def awaiting_input(self) -> bool:
-        """The game awaits a move when the move-select menu is on screen — detected
-        by any move slot resolving to a KB move (lenient; never raises)."""
-        return menu_open(self._frame(), self._ocr_engine(), self.kb, _layout.MOVES) \
-            and not self.is_over()
+    def _build_snapshot(self) -> dict:
+        me, opp = self._self, self._opp
+        return {
+            "awaiting": "move" if me["moves"] else None,
+            "self": {
+                "dex": me["dex"], "hp": me["hp"], "max_hp": me["max_hp"], "status": None,
+                "stages": {},
+                "moves": [{"name": mv["name"], "pp": mv["pp"]} for mv in me["moves"]],
+            },
+            "self_party": [],   # party isn't visible from one screen; no switching in v1
+            "opp": {"dex": opp["dex"], "hp": opp["hp"], "max_hp": opp["max_hp"], "status": None},
+        }
 
     # ---- act ---------------------------------------------------------------
     def send_action(self, action: Action) -> None:
         self.pending = action
 
     def step(self) -> None:
-        """Actuate the queued action via keystrokes, then let the turn animate."""
+        """Actuate the queued move on the already-open move menu, then let it animate.
+        With no pending action, poll-sleep so the awaiting_input wait doesn't busy-spin."""
+        v = self.cfg["world"].get("vision", {})
         action, self.pending = self.pending, None
         if action is None:
+            time.sleep(v.get("poll", 0.3))
             return
-        kb = self._keyboard()
-        if action.kind == "move":
-            kb.tap_sequence(_MOVE_KEYS.get(action.index, ["a"]))
-        else:
-            kb.tap_sequence(self._switch_keys(action.index))
-        time.sleep(self.cfg["world"].get("vision", {}).get("turn_wait", 4.0))  # animations
-
-    def _switch_keys(self, party_index: int) -> list[str]:
-        """Open the switch menu and land on a bench slot. CALIBRATE to your ROM's flow."""
-        return ["b", "down"] + ["down"] * party_index + ["a", "a"]
+        # v1 only attacks (switching from the action menu is a follow-up); a move
+        # navigates the open menu and confirms.
+        self._keyboard().tap_sequence(_MOVE_KEYS.get(action.index, ["a"]))
+        time.sleep(v.get("turn_wait", 4.0))
 
     # ---- close out ---------------------------------------------------------
     def is_over(self) -> bool:
-        return any(all(m.hp <= 0 for m in team) for team in self.teams)
+        return self._done
 
     def result(self) -> dict:
-        p = sum(m.hp > 0 for m in self.teams[0])
-        o = sum(m.hp > 0 for m in self.teams[1])
-        winner = "player" if o == 0 and p else "opponent" if p == 0 and o else None
-        return {"winner": winner, "player_remaining": p, "opponent_remaining": o}
+        return {"winner": None, "player_remaining": None, "opponent_remaining": None}

@@ -82,6 +82,29 @@ def menu_open(img, ocr, kb: KB, regions: dict | None = None) -> bool:
     return any(match_move(_region_text(img, ocr, R[slot]), kb) for slot in _MOVE_SLOTS)
 
 
+def read_panels(img, ocr, kb: KB, regions: dict) -> dict:
+    """Read both sides' species + HP from the action-menu panels (both show HP there).
+
+    recognize() call order per side: name, then hp — self first, then opp."""
+    def side(pfx: str) -> dict:
+        name = match_species(_region_text(img, ocr, regions[f"{pfx}_name"]), kb)
+        hp = _HP.search(_region_text(img, ocr, regions[f"{pfx}_hp"]))
+        return {
+            "name": name,
+            "hp": int(hp.group(1)) if hp else None,
+            "max_hp": int(hp.group(2)) if hp else None,
+        }
+    return {"self": side("self"), "opp": side("opp")}
+
+
+def action_menu_open(img, ocr, kb: KB, regions: dict | None = None) -> bool:
+    """Turn detector: True when the battle action bar (BATTLE / POKéMON / RUN) shows.
+    Robust to OCR slips — matches on the stable keywords in the bar region."""
+    R = regions or _layout.ACTION
+    text = _region_text(img, ocr, R["bar"]).upper()
+    return "BATTLE" in text or "RUN" in text or "POK" in text
+
+
 def read_screen(img, ocr, kb: KB, regions: dict | None = None) -> dict:
     R = regions or _layout.BATTLE
     self_hp = _HP.search(_region_text(img, ocr, R["self_hp"]))

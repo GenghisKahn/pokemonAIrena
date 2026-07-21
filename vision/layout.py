@@ -29,3 +29,16 @@ MOVES: dict[str, tuple[float, float, float, float]] = {
     "move_2": (0.08, 0.86, 0.40, 0.06),
     "move_3": (0.08, 0.92, 0.40, 0.06),
 }
+
+# Action menu — the reliable turn start ("A BATTLE  B POKéMON  S RUN"), with both
+# Pokémon panels visible. Calibrated from a live 1194x1228 RetroArch window (macOS,
+# windowed). "bar" is the turn detector. self = the player's Pokémon = BLUE (top-left);
+# opp = RED (bottom-right). HP boxes are widened on the left so a leading digit can't be
+# clipped (avoids the 125->25 misread). Recalibrate with scripts/ocr_probe.py if aspect differs.
+ACTION: dict[str, tuple[float, float, float, float]] = {
+    "bar":       (0.34, 0.205, 0.52, 0.055),   # BATTLE / POKéMON / RUN bar
+    "self_name": (0.06, 0.255, 0.26, 0.055),   # BLUE, top-left — the player's mon
+    "self_hp":   (0.05, 0.340, 0.30, 0.045),
+    "opp_name":  (0.70, 0.665, 0.26, 0.055),   # RED, bottom-right — the opponent
+    "opp_hp":    (0.67, 0.748, 0.31, 0.045),
+}

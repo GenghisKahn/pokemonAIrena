@@ -13,7 +13,11 @@ Needs the Vision bridge (pip install pyobjc-framework-Vision pyobjc-framework-Qu
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+
+# Make the repo root importable when run as `python scripts/ocr_probe.py`.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from kb import default_kb
 from vision import layout as _layout

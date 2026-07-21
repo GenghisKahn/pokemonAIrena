@@ -1,5 +1,41 @@
 # PROGRESS
 
+## ⭐ HANDOFF — current live state (read this first)
+
+**Goal right now:** get the vision backend to play ONE real turn against Pokémon Stadium
+on RetroArch (macOS). Everything below the emulator is done and tested (57 tests pass).
+
+**Turn model (rewritten):** the harness anchors each turn on the **action menu**
+("A BATTLE  B POKéMON  S RUN"), reads BOTH Pokémon off the panels, presses A to open the
+moves, reads them (KB-resolved), the agent picks, keystrokes navigate the open move menu.
+It reads **whoever is on screen** via the KB (all 151 now loaded) — no config teams needed.
+Player = **BLUE/top-left**, opponent = **RED/bottom-right** (this battle: self=Clefairy,
+opp=Oddish). Set in `vision/layout.py::ACTION`.
+
+**✅ Live-verified (window 1194x1228, macOS):**
+- Window capture by identity works (`capture: window`, `world/capture.py::_grab_window`).
+- Action-menu turn detection: `action_menu_open` → True.
+- Panels read correctly: SELF Clefairy 150/150, OPP Oddish 125/125 (HP boxes widened so a
+  leading digit can't clip — fixed an earlier 125→25 misread). Verified via `read_panels`.
+- OCR cross-checked by a blind Haiku agent: same text.
+
+**🚧 BLOCKED — the move-select flow (the one thing left for a first live turn):**
+- Pressing A (BATTLE) does NOT go straight to the 4 moves. It first shows a **Cancel/Check
+  screen** (your Pokémon zoomed, no move names). The move list is one more step away.
+- NEED from the user: (1) a screenshot of the actual **4-move-names screen**, and (2) the
+  exact button sequence action-menu → move (likely **A twice**, then navigate).
+- Then calibrate `vision/layout.py::MOVES` region boxes + fix `world/vision.py::_MOVE_KEYS`
+  (and the single `press("a")` in `snapshot()` may need to become two presses).
+- Also unbuilt: pre-battle menu navigation (choosing battle/team), between-battle
+  transitions, battle-end detection (`is_over` returns `_done`, currently always False →
+  bounded by `run.max_turns`), and switching (v1 only attacks; `available_switches` empty).
+
+**How to test live:** RetroArch rendering a battle (Angrylion or ParaLLEl RDP fixed the
+black screen), at the action menu, window at a normal size. Screen Recording + Accessibility
+permissions granted (capture worked, so they are). `config.yaml` already `backend: vision`,
+`capture: window`. Calibration probe: `python scripts/ocr_probe.py` (whole display) — for
+window/battle use the live snippet pattern from the session, or add `--region`.
+
 ## Done
 - Scaffolded the harness (Pokémon-native layout, not mirroring flightgear).
 - CLAUDE.md ported from flightgear_harness: behavioral rules verbatim; Project /
