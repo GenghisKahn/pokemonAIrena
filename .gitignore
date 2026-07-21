@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+*.egg-info/
+logs/
+*.state
+*.sav
+
+# Commercial ROMs and dumps — never commit (copyright + large binaries)
+*.z64
+*.n64
+*.v64
+/Pokemon Stadium (USA) (Rev 2)/

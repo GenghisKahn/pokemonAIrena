@@ -1,0 +1,21 @@
+{
+  "_note": "Gen 1 move data. category is derived from type in code (Special: fire/water/grass/electric/ice/psychic/dragon; else Physical). power 0 = status move.",
+  "Body Slam":   {"type": "normal",   "power": 85,  "accuracy": 100, "pp": 15, "effect": "30% paralyze"},
+  "Double-Edge": {"type": "normal",   "power": 100, "accuracy": 100, "pp": 15, "effect": "recoil"},
+  "Slash":       {"type": "normal",   "power": 70,  "accuracy": 100, "pp": 20, "effect": "high crit"},
+  "Hyper Beam":  {"type": "normal",   "power": 150, "accuracy": 90,  "pp": 5,  "effect": "recharge"},
+  "Earthquake":  {"type": "ground",   "power": 100, "accuracy": 100, "pp": 10, "effect": null},
+  "Rock Slide":  {"type": "rock",     "power": 75,  "accuracy": 90,  "pp": 10, "effect": null},
+  "Surf":        {"type": "water",    "power": 95,  "accuracy": 100, "pp": 15, "effect": null},
+  "Hydro Pump":  {"type": "water",    "power": 120, "accuracy": 80,  "pp": 5,  "effect": null},
+  "Blizzard":    {"type": "ice",      "power": 120, "accuracy": 90,  "pp": 5,  "effect": "10% freeze"},
+  "Ice Beam":    {"type": "ice",      "power": 95,  "accuracy": 100, "pp": 10, "effect": "10% freeze"},
+  "Thunderbolt": {"type": "electric", "power": 95,  "accuracy": 100, "pp": 15, "effect": "10% paralyze"},
+  "Thunder":     {"type": "electric", "power": 110, "accuracy": 70,  "pp": 10, "effect": "10% paralyze"},
+  "Thunder Wave":{"type": "electric", "power": 0,   "accuracy": 100, "pp": 20, "effect": "paralyze"},
+  "Psychic":     {"type": "psychic",  "power": 90,  "accuracy": 100, "pp": 10, "effect": "33% -SpDef"},
+  "Fire Blast":  {"type": "fire",     "power": 120, "accuracy": 85,  "pp": 5,  "effect": "30% burn"},
+  "Mega Drain":  {"type": "grass",    "power": 40,  "accuracy": 100, "pp": 10, "effect": "drain"},
+  "Razor Leaf":  {"type": "grass",    "power": 55,  "accuracy": 95,  "pp": 25, "effect": "high crit"},
+  "Sludge":      {"type": "poison",   "power": 65,  "accuracy": 100, "pp": 20, "effect": "30% poison"}
+}

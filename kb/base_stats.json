@@ -1,0 +1,20 @@
+{
+  "_note": "Gen 1 base stats (HP/Atk/Def/Spc/Spe — single Special stat). Starter subset; the full 151 slot in by adding entries. dex = National Dex number.",
+  "Venusaur":  {"dex": 3,   "types": ["grass", "poison"],   "base": {"hp": 80,  "atk": 82,  "def": 83,  "spc": 100, "spe": 80}},
+  "Charizard": {"dex": 6,   "types": ["fire", "flying"],    "base": {"hp": 78,  "atk": 84,  "def": 78,  "spc": 85,  "spe": 100}},
+  "Blastoise": {"dex": 9,   "types": ["water"],             "base": {"hp": 79,  "atk": 83,  "def": 100, "spc": 85,  "spe": 78}},
+  "Alakazam":  {"dex": 65,  "types": ["psychic"],           "base": {"hp": 55,  "atk": 50,  "def": 45,  "spc": 135, "spe": 120}},
+  "Golem":     {"dex": 76,  "types": ["rock", "ground"],    "base": {"hp": 80,  "atk": 110, "def": 130, "spc": 55,  "spe": 45}},
+  "Slowbro":   {"dex": 80,  "types": ["water", "psychic"],  "base": {"hp": 95,  "atk": 75,  "def": 110, "spc": 80,  "spe": 30}},
+  "Gengar":    {"dex": 94,  "types": ["ghost", "poison"],   "base": {"hp": 60,  "atk": 65,  "def": 60,  "spc": 130, "spe": 110}},
+  "Exeggutor": {"dex": 103, "types": ["grass", "psychic"],  "base": {"hp": 95,  "atk": 95,  "def": 85,  "spc": 125, "spe": 55}},
+  "Rhydon":    {"dex": 112, "types": ["ground", "rock"],    "base": {"hp": 105, "atk": 130, "def": 120, "spc": 45,  "spe": 40}},
+  "Chansey":   {"dex": 113, "types": ["normal"],            "base": {"hp": 250, "atk": 5,   "def": 5,   "spc": 105, "spe": 50}},
+  "Starmie":   {"dex": 121, "types": ["water", "psychic"],  "base": {"hp": 60,  "atk": 75,  "def": 85,  "spc": 100, "spe": 115}},
+  "Tauros":    {"dex": 128, "types": ["normal"],            "base": {"hp": 75,  "atk": 100, "def": 95,  "spc": 70,  "spe": 110}},
+  "Lapras":    {"dex": 131, "types": ["water", "ice"],      "base": {"hp": 130, "atk": 85,  "def": 80,  "spc": 95,  "spe": 60}},
+  "Jolteon":   {"dex": 135, "types": ["electric"],          "base": {"hp": 65,  "atk": 65,  "def": 60,  "spc": 110, "spe": 130}},
+  "Snorlax":   {"dex": 143, "types": ["normal"],            "base": {"hp": 160, "atk": 110, "def": 65,  "spc": 65,  "spe": 30}},
+  "Zapdos":    {"dex": 145, "types": ["electric", "flying"],"base": {"hp": 90,  "atk": 90,  "def": 85,  "spc": 125, "spe": 100}},
+  "Dragonite": {"dex": 149, "types": ["dragon", "flying"],  "base": {"hp": 91,  "atk": 134, "def": 95,  "spc": 100, "spe": 80}}
+}

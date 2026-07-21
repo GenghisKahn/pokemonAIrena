@@ -1,0 +1,36 @@
+# Default battle + harness configuration. One battle, best team standing wins.
+
+world:
+  backend: mock            # mock (in-memory, default) | project64 | retroarch
+  level: 50                # Stadium-style level cap for the mock engine
+  # emulator-only connection (ignored for mock)
+  retroarch:
+    host: 127.0.0.1
+    port: 55355            # RetroArch Network Control Interface (UDP)
+  project64:
+    host: 127.0.0.1
+    port: 8082             # local bridge exposed by the Project64 script
+
+battle:
+  # Illustrative rental-style teams. Species + moves must exist in src/kb/.
+  # (Movepools here are for a playable demo, not competitive legality.)
+  player_team:
+    - {species: Starmie,   moves: [Surf, Blizzard, Thunderbolt, Psychic]}
+    - {species: Tauros,    moves: [Body Slam, Earthquake, Blizzard, Hyper Beam]}
+    - {species: Exeggutor, moves: [Psychic, Mega Drain, Double-Edge]}
+  opponent_team:
+    - {species: Snorlax,   moves: [Body Slam, Earthquake, Ice Beam, Hyper Beam]}
+    - {species: Rhydon,    moves: [Earthquake, Rock Slide, Body Slam]}
+    - {species: Alakazam,  moves: [Psychic, Thunderbolt]}
+
+guardrails:
+  block_zero_effect: true  # replace a 0x-effectiveness move with the best legal move
+  warn_bad_switch: true    # flag switching a mon into a super-effective hit
+
+agent:
+  player: heuristic        # heuristic (deterministic, no API) | llm
+  model: claude-sonnet-5   # used only when player: llm
+  token_budget: 50000
+
+run:
+  max_turns: 300           # hard cap so a battle can never hang
