@@ -17,8 +17,11 @@ Full design rationale: `../pokemon-battle-harness-plan.md`. Project rules: `CLAU
 ```bash
 python app.py            # play the default battle, one line per turn
 python app.py --quiet    # just the final result
-pytest                   # 18 tests: KB, damage, gate, full battle, RA transport
+pytest                   # 24 tests: KB, damage, gate, full battle, RA transport, vision/OCR
 ```
+
+The vision path needs the optional `vision` extra (macOS): `pip install pillow
+pyobjc-framework-Vision pyobjc-framework-Quartz`. Without it, its two tests are skipped.
 
 No emulator or ROM needed — the default backend (`world.backend: mock` in
 `config.yaml`) is a deterministic in-memory Gen 1 engine. Everything is verifiable
@@ -33,15 +36,16 @@ bad-switch), may substitute, and logs why → `send_input()` (the single door ou
 actuates it → the backend resolves the turn. Loop until one side has no Pokémon.
 
 ```
-world/       Backend protocol + factory; mock (default), project64, retroarch
+world/       Backend protocol + factory; mock (default), project64, retroarch; keyboard (act)
 kb/          type_chart · base_stats · moves  (Gen 1 / Stadium ruleset)
 battle/      state types · read_battle (observe) · send_input (act) · damage math
+vision/      capture · ocr (Apple Vision) · layout · observe  — "read the screen" path
 guardrails/  the gate -> Verdict{action, violations}
 agent/       HeuristicPlayer (baseline) + LLMPlayer (stub -> heuristic fallback)
 harness/     the turn loop (loop.py)
 app.py       entry point
-scripts/     probe_retroarch.py (live NCI probe)
-tests/       KB, damage, guardrails, full battle, retroarch transport
+scripts/     probe_retroarch.py (live NCI probe) · ocr_probe.py (OCR region calibration)
+tests/       KB, damage, guardrails, full battle, retroarch transport, vision observe + OCR
 ```
 
 ## Status
@@ -56,7 +60,9 @@ tests/       KB, damage, guardrails, full battle, retroarch transport
 | mock backend | ✅ deterministic 3v3, resolves to a winner |
 | retroarch backend | ◑ UDP memory client works; RAM map + input TODO |
 | project64 backend | ⬜ stub (needs JS-script bridge) |
-| Tests | ✅ 18 passing (`pytest`) |
+| Vision observe (OCR) | ◑ `read_screen` → names + self HP, real Apple Vision OCR verified; layout uncalibrated, struct partial |
+| Vision act (keyboard) | ◑ `world/keyboard.py` posts key events → RetroArch RetroPad; needs live emulator + Accessibility perm |
+| Tests | ✅ 24 passing (`pytest`) |
 
 `python app.py` plays a full, sensible, deterministic battle (player wins the
 default matchup in 8 turns, 0 gate blocks).
@@ -72,6 +78,25 @@ default matchup in 8 turns, 0 gate blocks).
 The RAM map and knowledge base are backend-independent — switching backends only
 changes the observe/act plumbing, not battle logic.
 
+## Vision path — "play it like a human"
+
+A second observe/act approach that needs **no RAM map**: read the screen with OCR,
+drive the game with keyboard events. Complements the RAM route rather than replacing it.
+
+- `vision/capture.py` — `capture_region()` (macOS `screencapture`) + `crop_norm()`.
+- `vision/ocr.py` — `VisionOCR`, Apple Vision on-device OCR; normalized top-left boxes.
+- `vision/observe.py` — `read_screen()` → self/opp name + self HP; the KB fuzzy-matches the
+  noisy OCR name to a real species (tolerates OCR slips like I↔l, 4↔A).
+- `vision/layout.py` — `BATTLE` region boxes, **uncalibrated starting guesses**.
+- `world/keyboard.py` — `press()/tap_sequence()` via Quartz CGEvent → RetroArch's default
+  keyboard→RetroPad binds (X=A, Z=B, arrows=D-pad, Enter=Start). Needs Accessibility perm.
+- `scripts/ocr_probe.py` — calibration tool: dump full-frame OCR + boxes, or show what each
+  layout region reads, to line up `vision/layout.py` against a real Stadium frame.
+
+Verified: `tests/test_ocr.py` runs **real** Apple Vision OCR on a rendered frame (recovers
+name + HP); `tests/test_vision_observe.py` locks down the parsing + KB matching with a stub
+OCR. Both green with the `vision` extra installed.
+
 ## Gen 1 / Stadium rules encoded (do not mix in later gens)
 
 - Single **Special** stat (no Sp.Atk/Sp.Def split); move **category is fixed by type**
@@ -84,15 +109,29 @@ changes the observe/act plumbing, not battle logic.
 
 ## Next steps (build order)
 
+Two live-emulator routes to a working bridge — **RAM** or **vision**. Both feed the same
+harness loop; pick one to drive to a full live battle. The rest are backend-independent.
+
+**RAM route (retroarch/project64):**
 1. **RAM map (step 2)** — fill `world/retroarch.py::_ADDR` with the Stadium
    battle-struct addresses (self/opp species, HP, PP, status, stat stages,
    menu_state). Start from DataCrystal / TCRF; verify against a known HP using
    `scripts/probe_retroarch.py`. Implement `snapshot()` to match `MockBattle`'s shape.
 2. **Turn detection + input (step 3)** — `awaiting_input()` off the menu-state byte;
    `send_action()` via WRITE_CORE_MEMORY to the controller-poll address or a virtual gamepad.
-3. **LLMPlayer (step 5)** — prompt from BattleState, pick among available_moves/switches,
-   fall back to HeuristicPlayer on any error.
-4. **Arena + dashboard (step 6)** — win rate over N battles; reasoning/decision-log UI.
+
+**Vision route (no RAM map):**
+1. **Calibrate `vision/layout.py`** against a real Stadium frame (`python scripts/ocr_probe.py
+   --region x,y,w,h --regions`). Needs the emulator running.
+2. **Extend `read_screen()`** past names + self-HP to the full struct: opp HP, the 4 moves +
+   PP, status, and a menu-state read for turn detection.
+3. **`VisionBackend` in `world/`** — stitch capture→observe (state) + keyboard (act) into the
+   `Backend` protocol so `harness/loop.py` runs against live RetroArch with no RAM map.
+
+**Backend-independent:**
+- **LLMPlayer (step 5)** — prompt from BattleState, pick among available_moves/switches,
+  fall back to HeuristicPlayer on any error.
+- **Arena + dashboard (step 6)** — win rate over N battles; reasoning/decision-log UI.
 
 ## Notes / open items
 
