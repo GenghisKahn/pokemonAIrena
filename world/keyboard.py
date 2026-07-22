@@ -26,33 +26,47 @@ import subprocess
 import sys
 import time
 
-# ---- macOS: RetroPad button -> Quartz virtual keycode --------------------------
-# NOTE: macOS binds are upstream's; the move-diamond keys (dia_*) are the standard nav-key
-# keycodes but UNVERIFIED on mac — the Windows values below are the user-confirmed ones.
+# ---- macOS: game key -> Quartz virtual keycode ---------------------------------
+# NB: the RetroPad→N64 map for this ROM is NON-STANDARD (live-verified 2026-07-22 via
+# RetroArch's Port 1 Controls). The face keys x/a/s are N64 C-buttons, NOT N64 A. The
+# names below describe what a key ACTUALLY does in a Stadium battle, not the cfg label.
 _MAC_KEYCODES = {
-    "a": 7,       # X
-    "b": 6,       # Z
-    "l": 12,      # Q  (N64 L shoulder — Stadium: Cancel)
-    "r": 13,      # W  (N64 R shoulder — Stadium: Check)
+    "select": 6,     # Z  -> opens the move/party "diamond" (the pre-commit screen)
+    "check": 13,     # W  -> R/Check: HOLD to preview the diamond's option names
+    "cancel": 12,    # Q  -> L/Cancel: back out of the diamond
+    "start": 36,     # Return -> N64 Start (Stadium: field/look screen)
+    # the four diamond directions == N64 C-buttons; press one (after "select") to commit
+    "c_up": 45,      # N -> C-up
+    "c_down": 46,    # M -> C-down
+    "c_left": 11,    # B -> C-left
+    "c_right": 37,   # L -> C-right
     "up": 126, "down": 125, "left": 123, "right": 124,
-    "dia_up": 116, "dia_left": 115, "dia_right": 121, "dia_down": 119,  # PgUp/Home/PgDn/End
-    "start": 36,  # Return
-    "select": 60,  # Right Shift
+    # legacy aliases (older code/tests): a=X, b=Z, l=Q, r=W
+    "a": 7, "b": 6, "l": 12, "r": 13,
 }
 _DIR_TO_C = {"up": "c_up", "down": "c_down", "left": "c_left", "right": "c_right"}
 
 # ---- Windows: game key -> (hardware scancode, is_extended_key) ------------------
+# Reconciled from PR #1's LIVE-VERIFIED Windows binds. The first press of the move-select is
+# the Z key (0x2C) — macOS calls it "select", the Windows work called it the "A button"; same
+# physical key. The diamond directions were live-verified on Windows as the PgUp/Home/PgDn/End
+# nav cluster (NOT the N/M/B/L letter keys that were mirrored from macOS), so the shared
+# diamond_select primitive (select -> c_<dir>) drives them here via the c_* names below.
 _WIN_SCANCODES = {
-    "select": (0x2C, False),   # Z
-    "check": (0x11, False),    # W
-    "cancel": (0x10, False),   # Q
+    "select": (0x2C, False),   # Z  -> opens the move/party diamond (a.k.a. the "A button")
+    "check": (0x11, False),    # W  -> R/Check: HOLD to preview the diamond's option names
+    "cancel": (0x10, False),   # Q  -> L/Cancel
     "start": (0x1C, False),    # Enter
-    "c_up": (0x31, False),     # N
-    "c_down": (0x32, False),   # M
-    "c_left": (0x30, False),   # B
-    "c_right": (0x26, False),  # L
+    # diamond directions — Windows-verified as the PgUp/Home/PgDn/End nav cluster (PR #1)
+    "c_up": (0x49, True),      # PgUp -> ▲
+    "c_left": (0x47, True),    # Home -> ◀
+    "c_right": (0x51, True),   # PgDn -> ▶
+    "c_down": (0x4F, True),    # End  -> ▼
     "up": (0x48, True), "down": (0x50, True), "left": (0x4B, True), "right": (0x4D, True),
-    "a": (0x2D, False), "b": (0x2C, False), "l": (0x10, False), "r": (0x11, False),
+    # legacy aliases: a=A button(Z), b=B button(A key), l=Q, r=W (Windows-verified values)
+    "a": (0x2C, False), "b": (0x1E, False), "l": (0x10, False), "r": (0x11, False),
+    # dia_* aliases kept for Windows-native code that addresses the diamond directly
+    "dia_up": (0x49, True), "dia_left": (0x47, True), "dia_right": (0x51, True), "dia_down": (0x4F, True),
 }
 
 
@@ -115,17 +129,59 @@ class MacKeyboard(_Keyboard):
     Verified live 2026-07-21: a *global* post (CGEventPost to the HID tap) never reaches
     RetroArch — our own event tap catches the synthetic key but RetroArch ignores it
     (pause_nonactive + its cocoa driver reads per-window events). Posting to RetroArch's
-    pid with CGEventPostToPid *does* reach it. So we resolve the pid and target it.
-
-    Verified live 2026-07-21: a *global* post (CGEventPost to the HID tap) never reaches
-    RetroArch — our own event tap catches the synthetic key but RetroArch ignores it
-    (pause_nonactive + its cocoa driver reads per-window events). Posting to RetroArch's
     pid with CGEventPostToPid *does* reach it. So we resolve the pid and target it."""
 
     def __init__(self, move_mouse: bool = True) -> None:
         import Quartz
         self._Q = Quartz
         self._pid = self._retroarch_pid()
+        # pyobjc resolves symbols lazily and NOT thread-safely — touch every Quartz name the
+        # mouse thread will use here, on the main thread, so the background thread never
+        # triggers a concurrent lazy import (which corrupts pyobjc's funcmap).
+        for _name in ("CGWindowListCopyWindowInfo", "CGWarpMouseCursorPosition",
+                      "CGEventCreateMouseEvent", "CGEventCreateKeyboardEvent",
+                      "CGEventPostToPid", "kCGWindowListOptionOnScreenOnly",
+                      "kCGWindowListExcludeDesktopElements", "kCGNullWindowID",
+                      "kCGEventMouseMoved", "kCGHIDEventTap", "kCGMouseButtonLeft"):
+            getattr(Quartz, _name, None)
+        # RetroArch throttles rendering/input processing when the mouse is idle (App-Nap-
+        # like). A persistent mover keeps it live so synthetic keys actually register — the
+        # single biggest reliability fix (verified 2026-07-22). Runs for the driver's life.
+        self._mouse_stop = None
+        if move_mouse:
+            import threading
+            self._mouse_stop = threading.Event()
+            threading.Thread(target=self._mouse_loop, daemon=True).start()
+
+    def _window_center(self):
+        Q = self._Q
+        infos = Q.CGWindowListCopyWindowInfo(
+            Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements,
+            Q.kCGNullWindowID)
+        for w in infos or []:
+            if w.get("kCGWindowOwnerName") == "RetroArch":
+                b = w["kCGWindowBounds"]
+                return b["X"] + b["Width"] / 2, b["Y"] + b["Height"] / 2
+        return None
+
+    def _mouse_loop(self) -> None:  # pragma: no cover - live only
+        Q, i, center = self._Q, 0, None
+        while not self._mouse_stop.is_set():
+            if i % 50 == 0:
+                center = self._window_center()          # re-resolve (window may move)
+            if center is not None:
+                dx = ((i * 11) % 60) - 30
+                pt = (center[0] + dx, center[1])
+                Q.CGWarpMouseCursorPosition(pt)
+                if self._pid is not None:
+                    Q.CGEventPostToPid(self._pid, Q.CGEventCreateMouseEvent(
+                        None, Q.kCGEventMouseMoved, pt, 0))
+            i += 1
+            time.sleep(0.02)
+
+    def stop(self) -> None:
+        if self._mouse_stop is not None:
+            self._mouse_stop.set()
 
     @staticmethod
     def _retroarch_pid() -> int | None:
