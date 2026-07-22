@@ -1,21 +1,1158 @@
 {
-  "_note": "Gen 1 move data. category is derived from type in code (Special: fire/water/grass/electric/ice/psychic/dragon; else Physical). power 0 = status move.",
-  "Body Slam":   {"type": "normal",   "power": 85,  "accuracy": 100, "pp": 15, "effect": "30% paralyze"},
-  "Double-Edge": {"type": "normal",   "power": 100, "accuracy": 100, "pp": 15, "effect": "recoil"},
-  "Slash":       {"type": "normal",   "power": 70,  "accuracy": 100, "pp": 20, "effect": "high crit"},
-  "Hyper Beam":  {"type": "normal",   "power": 150, "accuracy": 90,  "pp": 5,  "effect": "recharge"},
-  "Earthquake":  {"type": "ground",   "power": 100, "accuracy": 100, "pp": 10, "effect": null},
-  "Rock Slide":  {"type": "rock",     "power": 75,  "accuracy": 90,  "pp": 10, "effect": null},
-  "Surf":        {"type": "water",    "power": 95,  "accuracy": 100, "pp": 15, "effect": null},
-  "Hydro Pump":  {"type": "water",    "power": 120, "accuracy": 80,  "pp": 5,  "effect": null},
-  "Blizzard":    {"type": "ice",      "power": 120, "accuracy": 90,  "pp": 5,  "effect": "10% freeze"},
-  "Ice Beam":    {"type": "ice",      "power": 95,  "accuracy": 100, "pp": 10, "effect": "10% freeze"},
-  "Thunderbolt": {"type": "electric", "power": 95,  "accuracy": 100, "pp": 15, "effect": "10% paralyze"},
-  "Thunder":     {"type": "electric", "power": 110, "accuracy": 70,  "pp": 10, "effect": "10% paralyze"},
-  "Thunder Wave":{"type": "electric", "power": 0,   "accuracy": 100, "pp": 20, "effect": "paralyze"},
-  "Psychic":     {"type": "psychic",  "power": 90,  "accuracy": 100, "pp": 10, "effect": "33% -SpDef"},
-  "Fire Blast":  {"type": "fire",     "power": 120, "accuracy": 85,  "pp": 5,  "effect": "30% burn"},
-  "Mega Drain":  {"type": "grass",    "power": 40,  "accuracy": 100, "pp": 10, "effect": "drain"},
-  "Razor Leaf":  {"type": "grass",    "power": 55,  "accuracy": 95,  "pp": 25, "effect": "high crit"},
-  "Sludge":      {"type": "poison",   "power": 65,  "accuracy": 100, "pp": 20, "effect": "30% poison"}
+  "_note": "Gen 1 (RBY) move data \u2014 all 165 moves. category is derived from type in code (Special: fire/water/grass/electric/ice/psychic/dragon; else Physical). power 0 = status / non-standard (OHKO, fixed-damage, level-damage). Gen-1 quirks: Bite/Gust/Karate Chop/Sand Attack are Normal-type.",
+  "Pound": {
+    "type": "normal",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 35,
+    "effect": null
+  },
+  "Karate Chop": {
+    "type": "normal",
+    "power": 50,
+    "accuracy": 100,
+    "pp": 25,
+    "effect": "high crit"
+  },
+  "Double Slap": {
+    "type": "normal",
+    "power": 15,
+    "accuracy": 85,
+    "pp": 10,
+    "effect": "hits 2-5"
+  },
+  "Comet Punch": {
+    "type": "normal",
+    "power": 18,
+    "accuracy": 85,
+    "pp": 15,
+    "effect": "hits 2-5"
+  },
+  "Mega Punch": {
+    "type": "normal",
+    "power": 80,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": null
+  },
+  "Pay Day": {
+    "type": "normal",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": null
+  },
+  "Fire Punch": {
+    "type": "fire",
+    "power": 75,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "10% burn"
+  },
+  "Ice Punch": {
+    "type": "ice",
+    "power": 75,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "10% freeze"
+  },
+  "Thunder Punch": {
+    "type": "electric",
+    "power": 75,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "10% paralyze"
+  },
+  "Scratch": {
+    "type": "normal",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 35,
+    "effect": null
+  },
+  "Vice Grip": {
+    "type": "normal",
+    "power": 55,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": null
+  },
+  "Guillotine": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 30,
+    "pp": 5,
+    "effect": "OHKO"
+  },
+  "Razor Wind": {
+    "type": "normal",
+    "power": 80,
+    "accuracy": 75,
+    "pp": 10,
+    "effect": "charge"
+  },
+  "Swords Dance": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "+2 atk"
+  },
+  "Cut": {
+    "type": "normal",
+    "power": 50,
+    "accuracy": 95,
+    "pp": 30,
+    "effect": null
+  },
+  "Gust": {
+    "type": "normal",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 35,
+    "effect": null
+  },
+  "Wing Attack": {
+    "type": "flying",
+    "power": 35,
+    "accuracy": 100,
+    "pp": 35,
+    "effect": null
+  },
+  "Whirlwind": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": "no effect"
+  },
+  "Fly": {
+    "type": "flying",
+    "power": 70,
+    "accuracy": 95,
+    "pp": 15,
+    "effect": "charge"
+  },
+  "Bind": {
+    "type": "normal",
+    "power": 15,
+    "accuracy": 75,
+    "pp": 20,
+    "effect": "trap"
+  },
+  "Slam": {
+    "type": "normal",
+    "power": 80,
+    "accuracy": 75,
+    "pp": 20,
+    "effect": null
+  },
+  "Vine Whip": {
+    "type": "grass",
+    "power": 35,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": null
+  },
+  "Stomp": {
+    "type": "normal",
+    "power": 65,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "30% flinch"
+  },
+  "Double Kick": {
+    "type": "fighting",
+    "power": 30,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "2 hits"
+  },
+  "Mega Kick": {
+    "type": "normal",
+    "power": 120,
+    "accuracy": 75,
+    "pp": 5,
+    "effect": null
+  },
+  "Jump Kick": {
+    "type": "fighting",
+    "power": 70,
+    "accuracy": 95,
+    "pp": 25,
+    "effect": "crash"
+  },
+  "Rolling Kick": {
+    "type": "fighting",
+    "power": 60,
+    "accuracy": 85,
+    "pp": 15,
+    "effect": "30% flinch"
+  },
+  "Sand Attack": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "-acc"
+  },
+  "Headbutt": {
+    "type": "normal",
+    "power": 70,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "30% flinch"
+  },
+  "Horn Attack": {
+    "type": "normal",
+    "power": 65,
+    "accuracy": 100,
+    "pp": 25,
+    "effect": null
+  },
+  "Fury Attack": {
+    "type": "normal",
+    "power": 15,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": "hits 2-5"
+  },
+  "Horn Drill": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 30,
+    "pp": 5,
+    "effect": "OHKO"
+  },
+  "Tackle": {
+    "type": "normal",
+    "power": 35,
+    "accuracy": 95,
+    "pp": 35,
+    "effect": null
+  },
+  "Body Slam": {
+    "type": "normal",
+    "power": 85,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "30% paralyze"
+  },
+  "Wrap": {
+    "type": "normal",
+    "power": 15,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": "trap"
+  },
+  "Take Down": {
+    "type": "normal",
+    "power": 90,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": "recoil"
+  },
+  "Thrash": {
+    "type": "normal",
+    "power": 90,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "lock"
+  },
+  "Double-Edge": {
+    "type": "normal",
+    "power": 100,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "recoil"
+  },
+  "Tail Whip": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "-def"
+  },
+  "Poison Sting": {
+    "type": "poison",
+    "power": 15,
+    "accuracy": 100,
+    "pp": 35,
+    "effect": "20% poison"
+  },
+  "Twineedle": {
+    "type": "bug",
+    "power": 25,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "2 hits 20% poison"
+  },
+  "Pin Missile": {
+    "type": "bug",
+    "power": 14,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": "hits 2-5"
+  },
+  "Leer": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "-def"
+  },
+  "Bite": {
+    "type": "normal",
+    "power": 60,
+    "accuracy": 100,
+    "pp": 25,
+    "effect": "10% flinch"
+  },
+  "Growl": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "-atk"
+  },
+  "Roar": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "no effect"
+  },
+  "Sing": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 55,
+    "pp": 15,
+    "effect": "sleep"
+  },
+  "Supersonic": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 55,
+    "pp": 20,
+    "effect": "confuse"
+  },
+  "Sonic Boom": {
+    "type": "normal",
+    "power": 20,
+    "accuracy": 90,
+    "pp": 20,
+    "effect": "fixed 20 dmg"
+  },
+  "Disable": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 55,
+    "pp": 20,
+    "effect": "disable"
+  },
+  "Acid": {
+    "type": "poison",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "10% -def"
+  },
+  "Ember": {
+    "type": "fire",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 25,
+    "effect": "10% burn"
+  },
+  "Flamethrower": {
+    "type": "fire",
+    "power": 95,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "10% burn"
+  },
+  "Mist": {
+    "type": "ice",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "block stat drop"
+  },
+  "Water Gun": {
+    "type": "water",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 25,
+    "effect": null
+  },
+  "Hydro Pump": {
+    "type": "water",
+    "power": 120,
+    "accuracy": 80,
+    "pp": 5,
+    "effect": null
+  },
+  "Surf": {
+    "type": "water",
+    "power": 95,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": null
+  },
+  "Ice Beam": {
+    "type": "ice",
+    "power": 95,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "10% freeze"
+  },
+  "Blizzard": {
+    "type": "ice",
+    "power": 120,
+    "accuracy": 90,
+    "pp": 5,
+    "effect": "10% freeze"
+  },
+  "Psybeam": {
+    "type": "psychic",
+    "power": 65,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "10% confuse"
+  },
+  "Bubble Beam": {
+    "type": "water",
+    "power": 65,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "10% -spe"
+  },
+  "Aurora Beam": {
+    "type": "ice",
+    "power": 65,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "10% -atk"
+  },
+  "Hyper Beam": {
+    "type": "normal",
+    "power": 150,
+    "accuracy": 90,
+    "pp": 5,
+    "effect": "recharge"
+  },
+  "Peck": {
+    "type": "flying",
+    "power": 35,
+    "accuracy": 100,
+    "pp": 35,
+    "effect": null
+  },
+  "Drill Peck": {
+    "type": "flying",
+    "power": 80,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": null
+  },
+  "Submission": {
+    "type": "fighting",
+    "power": 80,
+    "accuracy": 80,
+    "pp": 25,
+    "effect": "recoil"
+  },
+  "Low Kick": {
+    "type": "fighting",
+    "power": 50,
+    "accuracy": 90,
+    "pp": 20,
+    "effect": "30% flinch"
+  },
+  "Counter": {
+    "type": "fighting",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "counter"
+  },
+  "Seismic Toss": {
+    "type": "fighting",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "level dmg"
+  },
+  "Strength": {
+    "type": "normal",
+    "power": 80,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": null
+  },
+  "Absorb": {
+    "type": "grass",
+    "power": 20,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "drain"
+  },
+  "Mega Drain": {
+    "type": "grass",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "drain"
+  },
+  "Leech Seed": {
+    "type": "grass",
+    "power": 0,
+    "accuracy": 90,
+    "pp": 10,
+    "effect": "seed"
+  },
+  "Growth": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "+spc"
+  },
+  "Razor Leaf": {
+    "type": "grass",
+    "power": 55,
+    "accuracy": 95,
+    "pp": 25,
+    "effect": "high crit"
+  },
+  "Solar Beam": {
+    "type": "grass",
+    "power": 120,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "charge"
+  },
+  "Poison Powder": {
+    "type": "poison",
+    "power": 0,
+    "accuracy": 75,
+    "pp": 35,
+    "effect": "poison"
+  },
+  "Stun Spore": {
+    "type": "grass",
+    "power": 0,
+    "accuracy": 75,
+    "pp": 30,
+    "effect": "paralyze"
+  },
+  "Sleep Powder": {
+    "type": "grass",
+    "power": 0,
+    "accuracy": 75,
+    "pp": 15,
+    "effect": "sleep"
+  },
+  "Petal Dance": {
+    "type": "grass",
+    "power": 70,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "lock"
+  },
+  "String Shot": {
+    "type": "bug",
+    "power": 0,
+    "accuracy": 95,
+    "pp": 40,
+    "effect": "-spe"
+  },
+  "Dragon Rage": {
+    "type": "dragon",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "fixed 40 dmg"
+  },
+  "Fire Spin": {
+    "type": "fire",
+    "power": 15,
+    "accuracy": 70,
+    "pp": 15,
+    "effect": "trap"
+  },
+  "Thunder Shock": {
+    "type": "electric",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "10% paralyze"
+  },
+  "Thunderbolt": {
+    "type": "electric",
+    "power": 95,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "10% paralyze"
+  },
+  "Thunder Wave": {
+    "type": "electric",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "paralyze"
+  },
+  "Thunder": {
+    "type": "electric",
+    "power": 110,
+    "accuracy": 70,
+    "pp": 10,
+    "effect": "10% paralyze"
+  },
+  "Rock Throw": {
+    "type": "rock",
+    "power": 50,
+    "accuracy": 90,
+    "pp": 15,
+    "effect": null
+  },
+  "Earthquake": {
+    "type": "ground",
+    "power": 100,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": null
+  },
+  "Fissure": {
+    "type": "ground",
+    "power": 0,
+    "accuracy": 30,
+    "pp": 5,
+    "effect": "OHKO"
+  },
+  "Dig": {
+    "type": "ground",
+    "power": 100,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "charge"
+  },
+  "Toxic": {
+    "type": "poison",
+    "power": 0,
+    "accuracy": 85,
+    "pp": 10,
+    "effect": "badly poison"
+  },
+  "Confusion": {
+    "type": "psychic",
+    "power": 50,
+    "accuracy": 100,
+    "pp": 25,
+    "effect": "10% confuse"
+  },
+  "Psychic": {
+    "type": "psychic",
+    "power": 90,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "33% -spc"
+  },
+  "Hypnosis": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 60,
+    "pp": 20,
+    "effect": "sleep"
+  },
+  "Meditate": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "+atk"
+  },
+  "Agility": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "+2 spe"
+  },
+  "Quick Attack": {
+    "type": "normal",
+    "power": 40,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "priority"
+  },
+  "Rage": {
+    "type": "normal",
+    "power": 20,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "rage"
+  },
+  "Teleport": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "no effect"
+  },
+  "Night Shade": {
+    "type": "ghost",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "level dmg"
+  },
+  "Mimic": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "mimic"
+  },
+  "Screech": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 85,
+    "pp": 40,
+    "effect": "-2 def"
+  },
+  "Double Team": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "+eva"
+  },
+  "Recover": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "heal"
+  },
+  "Harden": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "+def"
+  },
+  "Minimize": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "+eva"
+  },
+  "Smokescreen": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "-acc"
+  },
+  "Confuse Ray": {
+    "type": "ghost",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "confuse"
+  },
+  "Withdraw": {
+    "type": "water",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "+def"
+  },
+  "Defense Curl": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "+def"
+  },
+  "Barrier": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "+2 def"
+  },
+  "Light Screen": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "light screen"
+  },
+  "Haze": {
+    "type": "ice",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "reset stats"
+  },
+  "Reflect": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "reflect"
+  },
+  "Focus Energy": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "crit up"
+  },
+  "Bide": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "bide"
+  },
+  "Metronome": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "random move"
+  },
+  "Mirror Move": {
+    "type": "flying",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "copy"
+  },
+  "Self-Destruct": {
+    "type": "normal",
+    "power": 130,
+    "accuracy": 100,
+    "pp": 5,
+    "effect": "faint user"
+  },
+  "Egg Bomb": {
+    "type": "normal",
+    "power": 100,
+    "accuracy": 75,
+    "pp": 10,
+    "effect": null
+  },
+  "Lick": {
+    "type": "ghost",
+    "power": 20,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "30% paralyze"
+  },
+  "Smog": {
+    "type": "poison",
+    "power": 20,
+    "accuracy": 70,
+    "pp": 20,
+    "effect": "40% poison"
+  },
+  "Sludge": {
+    "type": "poison",
+    "power": 65,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "30% poison"
+  },
+  "Bone Club": {
+    "type": "ground",
+    "power": 65,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": "10% flinch"
+  },
+  "Fire Blast": {
+    "type": "fire",
+    "power": 120,
+    "accuracy": 85,
+    "pp": 5,
+    "effect": "30% burn"
+  },
+  "Waterfall": {
+    "type": "water",
+    "power": 80,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": null
+  },
+  "Clamp": {
+    "type": "water",
+    "power": 35,
+    "accuracy": 75,
+    "pp": 10,
+    "effect": "trap"
+  },
+  "Swift": {
+    "type": "normal",
+    "power": 60,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "never miss"
+  },
+  "Skull Bash": {
+    "type": "normal",
+    "power": 100,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "charge"
+  },
+  "Spike Cannon": {
+    "type": "normal",
+    "power": 20,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "hits 2-5"
+  },
+  "Constrict": {
+    "type": "normal",
+    "power": 10,
+    "accuracy": 100,
+    "pp": 35,
+    "effect": "10% -spe"
+  },
+  "Amnesia": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "+2 spc"
+  },
+  "Kinesis": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 80,
+    "pp": 15,
+    "effect": "-acc"
+  },
+  "Soft-Boiled": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "heal"
+  },
+  "High Jump Kick": {
+    "type": "fighting",
+    "power": 85,
+    "accuracy": 90,
+    "pp": 20,
+    "effect": "crash"
+  },
+  "Glare": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 75,
+    "pp": 30,
+    "effect": "paralyze"
+  },
+  "Dream Eater": {
+    "type": "psychic",
+    "power": 100,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "drain (sleeping)"
+  },
+  "Poison Gas": {
+    "type": "poison",
+    "power": 0,
+    "accuracy": 55,
+    "pp": 40,
+    "effect": "poison"
+  },
+  "Barrage": {
+    "type": "normal",
+    "power": 15,
+    "accuracy": 85,
+    "pp": 20,
+    "effect": "hits 2-5"
+  },
+  "Leech Life": {
+    "type": "bug",
+    "power": 20,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "drain"
+  },
+  "Lovely Kiss": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 75,
+    "pp": 10,
+    "effect": "sleep"
+  },
+  "Sky Attack": {
+    "type": "flying",
+    "power": 140,
+    "accuracy": 90,
+    "pp": 5,
+    "effect": "charge"
+  },
+  "Transform": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "transform"
+  },
+  "Bubble": {
+    "type": "water",
+    "power": 20,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "10% -spe"
+  },
+  "Dizzy Punch": {
+    "type": "normal",
+    "power": 70,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": null
+  },
+  "Spore": {
+    "type": "grass",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 15,
+    "effect": "sleep"
+  },
+  "Flash": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 70,
+    "pp": 20,
+    "effect": "-acc"
+  },
+  "Psywave": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 80,
+    "pp": 15,
+    "effect": "random dmg"
+  },
+  "Splash": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "no effect"
+  },
+  "Acid Armor": {
+    "type": "poison",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 40,
+    "effect": "+2 def"
+  },
+  "Crabhammer": {
+    "type": "water",
+    "power": 90,
+    "accuracy": 85,
+    "pp": 10,
+    "effect": "high crit"
+  },
+  "Explosion": {
+    "type": "normal",
+    "power": 170,
+    "accuracy": 100,
+    "pp": 5,
+    "effect": "faint user"
+  },
+  "Fury Swipes": {
+    "type": "normal",
+    "power": 18,
+    "accuracy": 80,
+    "pp": 15,
+    "effect": "hits 2-5"
+  },
+  "Bonemerang": {
+    "type": "ground",
+    "power": 50,
+    "accuracy": 90,
+    "pp": 10,
+    "effect": "2 hits"
+  },
+  "Rest": {
+    "type": "psychic",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "sleep heal"
+  },
+  "Rock Slide": {
+    "type": "rock",
+    "power": 75,
+    "accuracy": 90,
+    "pp": 10,
+    "effect": null
+  },
+  "Hyper Fang": {
+    "type": "normal",
+    "power": 80,
+    "accuracy": 90,
+    "pp": 15,
+    "effect": "10% flinch"
+  },
+  "Sharpen": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "+atk"
+  },
+  "Conversion": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 30,
+    "effect": "type change"
+  },
+  "Tri Attack": {
+    "type": "normal",
+    "power": 80,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": null
+  },
+  "Super Fang": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 90,
+    "pp": 10,
+    "effect": "halve HP"
+  },
+  "Slash": {
+    "type": "normal",
+    "power": 70,
+    "accuracy": 100,
+    "pp": 20,
+    "effect": "high crit"
+  },
+  "Substitute": {
+    "type": "normal",
+    "power": 0,
+    "accuracy": 100,
+    "pp": 10,
+    "effect": "substitute"
+  },
+  "Struggle": {
+    "type": "normal",
+    "power": 50,
+    "accuracy": 100,
+    "pp": 1,
+    "effect": "recoil"
+  }
 }

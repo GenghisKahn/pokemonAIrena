@@ -39,20 +39,20 @@ _MAC_KEYCODES = {
     "start": 36,  # Return
     "select": 60,  # Right Shift
 }
+_DIR_TO_C = {"up": "c_up", "down": "c_down", "left": "c_left", "right": "c_right"}
 
-# ---- Windows: RetroPad button -> (hardware scancode, is_extended_key) -----------
-# Key binds confirmed live by the user (this RetroArch config): A button=z key, B button=a key,
-# L=q, R=w, and the Stadium move DIAMOND is the PgUp/Home/PgDn/End nav cluster (▲/◀/▶/▼).
+# ---- Windows: game key -> (hardware scancode, is_extended_key) ------------------
 _WIN_SCANCODES = {
-    "a": (0x2C, False),   # A button  <- Z key
-    "b": (0x1E, False),   # B button  <- A key
-    "l": (0x10, False),   # Q  (N64 L shoulder — Stadium: Cancel)
-    "r": (0x11, False),   # W  (N64 R shoulder — Stadium: Check)
+    "select": (0x2C, False),   # Z
+    "check": (0x11, False),    # W
+    "cancel": (0x10, False),   # Q
+    "start": (0x1C, False),    # Enter
+    "c_up": (0x31, False),     # N
+    "c_down": (0x32, False),   # M
+    "c_left": (0x30, False),   # B
+    "c_right": (0x26, False),  # L
     "up": (0x48, True), "down": (0x50, True), "left": (0x4B, True), "right": (0x4D, True),
-    # move diamond: ▲=PgUp ◀=Home ▶=PgDn ▼=End (extended nav keys)
-    "dia_up": (0x49, True), "dia_left": (0x47, True), "dia_right": (0x51, True), "dia_down": (0x4F, True),
-    "start": (0x1C, False),   # Enter
-    "select": (0x36, False),  # Right Shift
+    "a": (0x2D, False), "b": (0x2C, False), "l": (0x10, False), "r": (0x11, False),
 }
 
 
@@ -88,6 +88,26 @@ class _Keyboard:
             self.press(b)
             time.sleep(gap)
 
+    def hold(self, button: str, dur: float = 1.5) -> None:
+        """Hold a button down for `dur` seconds — e.g. 'check' (w) to preview the diamond's
+        option names (the moves / the party) before committing."""
+        self._down(button)
+        time.sleep(dur)
+        self._up(button)
+        time.sleep(0.05)
+
+    def diamond_select(self, direction: str, settle: float = 1.6) -> None:
+        """Commit one option from the Stadium move/party 'diamond'. THE core act primitive
+        (live-verified 2026-07-22): 'select' (Z) opens the pre-commit screen, then the
+        C-button for `direction` (up/down/left/right) chooses that cell — the SAME mechanic
+        for both moves and switches. Requires the mouse to be moving (MacKeyboard runs a
+        persistent mover). Callers should retry until observe confirms the effect."""
+        if direction not in _DIR_TO_C:
+            raise ValueError(f"direction must be one of {sorted(_DIR_TO_C)}, got {direction!r}")
+        self.press("select")
+        time.sleep(settle)
+        self.press(_DIR_TO_C[direction])
+
 
 class MacKeyboard(_Keyboard):
     """macOS Quartz CGEvent, posted directly to the RetroArch process.
@@ -95,9 +115,14 @@ class MacKeyboard(_Keyboard):
     Verified live 2026-07-21: a *global* post (CGEventPost to the HID tap) never reaches
     RetroArch — our own event tap catches the synthetic key but RetroArch ignores it
     (pause_nonactive + its cocoa driver reads per-window events). Posting to RetroArch's
+    pid with CGEventPostToPid *does* reach it. So we resolve the pid and target it.
+
+    Verified live 2026-07-21: a *global* post (CGEventPost to the HID tap) never reaches
+    RetroArch — our own event tap catches the synthetic key but RetroArch ignores it
+    (pause_nonactive + its cocoa driver reads per-window events). Posting to RetroArch's
     pid with CGEventPostToPid *does* reach it. So we resolve the pid and target it."""
 
-    def __init__(self) -> None:
+    def __init__(self, move_mouse: bool = True) -> None:
         import Quartz
         self._Q = Quartz
         self._pid = self._retroarch_pid()

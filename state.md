@@ -2,11 +2,11 @@
 
 _A cold-start briefing: what this is, how it fits together, what works, and what's next._
 
-> **⚠️ For the LIVE current state, read [`HANDOFF.md`](HANDOFF.md)** (authoritative, cross-platform)
-> **and [`PROGRESS.md`](PROGRESS.md)** (the Windows-fork detail). This file describes the original
-> RAM-map design; the project pivoted to a **vision + keyboard** approach on RetroArch. Observe works
-> and is window-size- and aspect-independent on both macOS and Windows; the remaining blocker is the
-> **move-commit key** (how to actually USE a move) — the flow to the move DIAMOND is mapped.
+> **⚠️ For the LIVE current state (2026-07-22), read [`HANDOFF.md`](HANDOFF.md).** This file
+> describes the original RAM-map design; the project has since pivoted to a **vision + keyboard**
+> approach on RetroArch. Observe works and is window-size-independent; the sole remaining blocker is
+> the **move-commit key sequence** (how to actually USE a move). See HANDOFF.md for the input model,
+> emulator config, uncommitted changes, and next steps.
 
 ## What it is
 
@@ -146,6 +146,11 @@ harness loop; pick one to drive to a full live battle. The rest are backend-inde
 - Mock simplifications: no status/crit/accuracy rolls; faint auto-switch picks first alive.
 - User-added and kept as-is: `tests/test_retroarch_transport.py`, `scripts/probe_retroarch.py`.
 - **Git repo** on `master`, remote `origin` = github.com/bockbrendan/pokemonAIrena.
+- **Stadium battle UI (mapped live, this session):** no "BATTLE/POKéMON/RUN" bar in this mode —
+  move-selection is a **D-pad DIAMOND** (▲/◀/▶/▼ = 4 moves, e.g. Up=Surf/Left=Withdraw/Right=Ice
+  Beam/Down=Strength). B from the diamond = "L Cancel/R Check" camera-look mode (L returns to the
+  diamond). `world/keyboard.py` needs **L=q, R=w** added. `_MOVE_KEYS`→direction-based, `MOVES`
+  recalibrate to diamond cells. Full detail + open items in `PROGRESS.md` HANDOFF.
 - **Live emulator (macOS):** sandboxed/App-Store RetroArch — config, cores, saves, states under
   `~/Library/Containers/com.libretro.dist.RetroArch/Data/...`. N64 core = Mupen64Plus-Next
   (`/Applications/RetroArch.app/Contents/Frameworks/mupen64plus.next.libretro.framework`);

@@ -13,8 +13,8 @@ from kb import KB
 from vision import layout as _layout
 from vision.capture import crop_norm
 
-_HP = re.compile(r"(\d+)\s*[/il|\s]\s*(\d+)")   # tolerate OCR misreads of '/' (incl. dropped
-#                                                to whitespace when OCR splits "105/105" -> "105","105")
+_HP = re.compile(r"(\d+)\s*[/il|\s.]\s*(\d+)")   # tolerate OCR misreads of '/' — as i/l/|, a
+#                            dropped separator ("105 105"), or a period ("0. 130")
 
 _MOVE_SLOTS = ("move_0", "move_1", "move_2", "move_3")
 
@@ -106,6 +106,70 @@ def action_menu_open(img, ocr, kb: KB, regions: dict | None = None) -> bool:
     R = regions or _layout.ACTION
     text = _region_text(img, ocr, R["bar"]).upper()
     return "BATTLE" in text or "RUN" in text or "POK" in text
+
+
+def switch_screen_open(img, ocr, kb: KB, regions: dict | None = None) -> bool:
+    """Forced-switch detector: after a faint the bar shows only "R Check" (no BATTLE/RUN
+    action bar, and no "Cancel" — the switch is mandatory). Distinguishes this from the
+    move pre-commit screen, which shows BOTH "L Cancel" and "R Check"."""
+    R = regions or _layout.ACTION
+    text = _region_text(img, ocr, R["bar"]).upper()
+    return "CHECK" in text and "CANCEL" not in text and "BATTLE" not in text and "RUN" not in text
+
+
+def battle_result(img, ocr) -> str | None:
+    """Detect the end-of-battle result screen and who won. It stacks two rows — "1P"
+    (the player) over "COM" (the opponent) — each with a big WIN or LOSE word. The WIN/
+    LOSE word in the SAME row as "1P" is the player's outcome, so the one nearer 1P's y
+    wins. Returns "self" (player won), "opponent" (player lost), or None (not the result
+    screen). Live-verified 2026-07-22 against a real loss screen (1P=LOSE / COM=WIN)."""
+    res = ocr.recognize(img)
+    def cy(r):
+        return r.bbox[1] + r.bbox[3] / 2
+    wins = [cy(r) for r in res if "WIN" in r.text.upper()]
+    loses = [cy(r) for r in res if "LOSE" in r.text.upper()]
+    if not (wins or loses):
+        return None
+    ps = [cy(r) for r in res if "1P" in r.text.upper().replace(" ", "")]
+    p = ps[0] if ps else 0.1                             # 1P sits in the top row
+    win_d = min((abs(y - p) for y in wins), default=9.0)
+    lose_d = min((abs(y - p) for y in loses), default=9.0)
+    return "self" if win_d < lose_d else "opponent"
+
+
+def on_battle_screen(img, ocr, kb: KB, regions: dict) -> bool:
+    """True while we're still in a battle: the action bar, a forced-switch prompt, or
+    both HP panels are showing. False on a settled result/non-battle screen (used, with
+    a debounce, to detect battle end). Cheap — reuses the ACTION bar + panel reads."""
+    if action_menu_open(img, ocr, kb, regions) or switch_screen_open(img, ocr, kb, regions):
+        return True
+    panels = read_panels(img, ocr, kb, regions)
+    return bool(panels["self"]["name"] and panels["opp"]["name"])
+
+
+def read_party(img, ocr, kb: KB, regions: dict) -> list[dict]:
+    """Read the forced-switch party diamond (revealed by holding Check) into a list of
+    {name, hp, max_hp}, in DIAMOND-SLOT order (up, right, down, ...) so a slot index maps
+    straight to a D-pad direction. Slots with no resolvable name are dropped (short teams).
+    ⚠️ PARTY cell boxes want a live calibration pass."""
+    out: list[dict] = []
+    slots = sorted(k[:-5] for k in regions if k.endswith("_name"))   # slot_0, slot_1, ...
+    for slot in slots:
+        name = match_species(_region_text(img, ocr, regions[f"{slot}_name"]), kb)
+        if not name:
+            continue
+        raw = _region_text(img, ocr, regions.get(f"{slot}_hp", (0, 0, 0, 0)))
+        m = _HP.search(raw)
+        if m:
+            hp, max_hp = int(m.group(1)), int(m.group(2))
+        else:
+            # A fainted mon shows "0/124", but Apple Vision reads the leading 0 as the
+            # letter O — catch that so a fainted Pokémon isn't mistaken for a healthy one.
+            fnt = re.search(r"[O0]\s*[/il| .]\s*(\d+)", raw)
+            hp = 0 if fnt else None
+            max_hp = int(fnt.group(1)) if fnt else None
+        out.append({"name": name, "hp": hp, "max_hp": max_hp})
+    return out
 
 
 def read_screen(img, ocr, kb: KB, regions: dict | None = None) -> dict:

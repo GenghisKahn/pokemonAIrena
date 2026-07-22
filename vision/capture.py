@@ -82,14 +82,14 @@ def _find_window_id(match: str):
 def _crop_to_viewport(img: Image.Image, black: int = 16, sample: int = 6,
                       min_frac: float = 0.35) -> Image.Image:
     """Crop a captured window down to the game's render area, so normalized layout boxes
-    are identical at any window size and on either OS.
+    are identical at any window size.
 
-    A window capture wraps the game in chrome (a macOS title bar on top) and black
-    letterbox bars (the game keeps a 4:3 aspect, the window rarely matches). We isolate
-    the render area as the *tallest* contiguous band of non-black rows — the title bar is
-    a much smaller band, so it's excluded — then trim the black side margins within that
-    band. If the result is degenerate (e.g. a fully dark frame), the original image is
-    returned so observe still gets something rather than raising."""
+    A window capture wraps the game in a macOS title bar (top) and black letterbox bars
+    (the game keeps a 4:3 aspect, the window rarely matches). We isolate the render area
+    as the *tallest* contiguous band of non-black rows — the title bar is a much smaller
+    band, so it's excluded — then trim the black side margins within that band. If the
+    result is degenerate (e.g. a fully dark frame), the original image is returned so
+    observe still gets something rather than raising."""
     g = img.convert("L")
     W, H = g.size
     px = g.load()
@@ -141,7 +141,8 @@ def _grab_window(match: str) -> Image.Image:
 
 def _grab_window_mac(match: str) -> Image.Image:
     """macOS: capture the window matching `match` by its CGWindowID (position/size/
-    z-order independent). Needs Screen Recording permission and the window on-screen."""
+    z-order independent), cropped to the game's render area so layout boxes hold at any
+    window size. Needs Screen Recording permission and the window on-screen."""
     wid = _find_window_id(match)
     if wid is None:
         raise RuntimeError(
