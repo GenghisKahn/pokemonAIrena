@@ -16,6 +16,9 @@ world:
     window: RetroArch      # window-title substring to capture (used when capture: window; macOS)
     ocr: auto              # auto (Vision on macOS, Tesseract elsewhere) | vision | tesseract
     keyboard: auto         # auto (by platform) | mac (Quartz) | windows (SendInput)
+    read_inventory: true   # at battle start, open the POKéMON screen to read the full team
+                           # roster (bench context for type matchups + voluntary switches)
+    pokemon_button: pokemon  # keymap name for the "POKéMON" action-bar option (party screen)
   project64:
     host: 127.0.0.1
     port: 8082             # local bridge exposed by the Project64 script

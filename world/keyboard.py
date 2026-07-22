@@ -34,6 +34,9 @@ _MAC_KEYCODES = {
     "select": 6,     # Z  -> opens the move/party "diamond" (the pre-commit screen)
     "check": 13,     # W  -> R/Check: HOLD to preview the diamond's option names
     "cancel": 12,    # Q  -> L/Cancel: back out of the diamond
+    "pokemon": 0,    # A key -> N64 "B" = the "POKéMON" action bar option (party screen).
+    #                  ⚠️ best guess (HANDOFF: key a -> N64 B); VERIFY LIVE, override via
+    #                  world.vision.pokemon_button if wrong.
     "start": 36,     # Return -> N64 Start (Stadium: field/look screen)
     # the four diamond directions == N64 C-buttons; press one (after "select") to commit
     "c_up": 45,      # N -> C-up
@@ -58,6 +61,9 @@ _WIN_SCANCODES = {
     "select": (0x2C, False),   # Z  -> opens the move-select screen (this config's "A button")
     "check": (0x11, False),    # W  -> R/Check: HOLD to preview the diamond's option names
     "cancel": (0x10, False),   # Q  -> L/Cancel: back out of the move-select screen
+    "pokemon": (0x1E, False),  # A key -> N64 "B" = the "POKéMON" action bar option (party
+    #                            screen). Matches PR #1's b=A key; VERIFY LIVE, override via
+    #                            world.vision.pokemon_button if wrong.
     "start": (0x1C, False),    # Enter
     # the four diamond directions — the PgUp/Home/PgDn/End nav cluster (Windows-verified, PR #1)
     "dia_up": (0x49, True),    # PgUp -> ▲

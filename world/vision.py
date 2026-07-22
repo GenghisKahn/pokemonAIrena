@@ -64,6 +64,7 @@ class VisionBackend:
         self._done = False
         self._winner: str | None = None        # "self" | "opponent" | None (unknown)
         self._off_screen = 0                   # consecutive non-battle frames (end debounce)
+        self._inventory_read = False           # read the full team roster once, at battle start
 
     # ---- dependencies (lazy on real runs) ----------------------------------
     def _ocr_engine(self):
@@ -160,10 +161,53 @@ class VisionBackend:
                 self._done, self._winner = True, "opponent"     # nothing left to send out
         else:
             self._awaiting = "move"
+            v = self.cfg["world"].get("vision", {})
+            if v.get("read_inventory", True) and not self._inventory_read:
+                self._inventory_read = True                    # once, at the first move turn
+                self._party = self._read_inventory()           # bench roster for switch context
             if not self._self["moves"]:                        # cache: only re-read when unknown
                 names = self._peek_moves()
                 self._self["moves"] = [self._move_entry(n, i) for i, n in enumerate(names)]
         return self._build_snapshot()
+
+    def _read_inventory(self) -> list[dict]:
+        """At the first move turn, open the POKéMON party screen, read the full team
+        (species + HP) so the agent has bench context for type matchups and voluntary
+        switches from turn 1 — then back out to the action bar. The active mon is dropped
+        so only the switchable bench remains. Fail-safe: any trouble returns [] and the
+        action menu is restored, so the battle proceeds even if the read fails.
+
+        OS-agnostic: goes through the keyboard/OCR interfaces, so it runs on both macOS
+        and Windows; only the 'pokemon' keycode differs per OS (override via
+        world.vision.pokemon_button). ⚠️ The party OCR uses the forced-switch PARTY boxes,
+        which still want a live calibration pass on each platform's crop."""
+        kbd, v = self._keyboard(), self.cfg["world"].get("vision", {})
+        ocr = self._ocr_engine()
+        active = self._self["name"] if self._self else None
+        try:
+            kbd.activate()                                     # Windows SendInput needs focus
+            kbd.press(v.get("pokemon_button", "pokemon"))      # action bar -> POKéMON screen
+            time.sleep(v.get("menu_wait", 0.6))
+            kbd._down("check")                                 # reveal names + HP (as on a switch)
+            time.sleep(v.get("menu_wait", 0.6))
+            raw = read_party(self._frame(), ocr, self.kb, _layout.PARTY)
+            kbd._up("check")
+            return [p for p in raw if p.get("name") and p["name"] != active]
+        except Exception:
+            return []
+        finally:
+            self._restore_action_menu()
+
+    def _restore_action_menu(self) -> None:
+        """Back out of any sub-menu until the action bar is showing again (fail-safe, so a
+        sub-menu peek can never strand the turn loop)."""
+        kbd, v = self._keyboard(), self.cfg["world"].get("vision", {})
+        ocr = self._ocr_engine()
+        for _ in range(3):
+            if action_menu_open(self._frame(), ocr, self.kb, _layout.ACTION):
+                return
+            kbd.press("cancel")
+            time.sleep(v.get("menu_wait", 0.6))
 
     def _party_view(self, p: dict) -> dict:
         sp = self.kb.species(p["name"])

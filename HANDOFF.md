@@ -170,6 +170,22 @@ The vision path now runs on **Windows** too; `sys.platform` selects the OS-speci
   Only the open/preview/back keys coincide (both configs put `select`/`check`/`cancel` on Z/W/Q), so those
   keep shared names; the diamond commit is fully separate per OS. Neither map borrows the other's key names.
 
+## Team inventory read at battle start (both OSes)
+
+So the agent has bench context for type matchups and voluntary switches from turn 1 (not only when a
+faint forces a switch), `VisionBackend` reads the full roster once at the first move turn:
+`world/vision.py::_read_inventory()` opens the **POKéMON** action-bar screen (`pokemon` keymap button),
+reveals names+HP (hold Check → `read_party`), drops the active mon, and stores the switchable bench —
+then backs out to the action bar. It's **fail-safe**: any trouble returns `[]` and `_restore_action_menu()`
+cancels back so the turn loop never strands on a sub-menu. Enabled via `world.vision.read_inventory: true`.
+
+OS-agnostic by construction (it goes through the keyboard/OCR interfaces); the only per-OS bit is the
+`pokemon` keycode (`_MAC_KEYCODES`/`_WIN_SCANCODES`, override via `world.vision.pokemon_button`).
+⚠️ **Two things need one live pass per platform:** (1) the `pokemon` keycode is a best guess (macOS: key
+`a`→N64 B; Windows: `0x1E`) — verify it actually opens POKéMON; (2) the party OCR reuses the forced-switch
+`PARTY` boxes, still macOS-calibrated, so the diamond cells want a Windows-crop calibration. Logic is unit-
+tested (bench excludes active; fail-safe restores the menu; read happens once and flows to `available_switches`).
+
 ## Scratch artifacts (in `/tmp`)
 
 - `/tmp/pk_drive.py` — persistent-mouse harness (the reliable input pattern). `/tmp/pk_conclude.py` — the

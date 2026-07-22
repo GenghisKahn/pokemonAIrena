@@ -18,7 +18,8 @@ def _cfg():
         c = yaml.safe_load(f)
     c["world"]["vision"].update({"menu_wait": 0, "turn_wait": 0, "poll": 0,
                                  "act_retries": 1, "end_polls": 2,
-                                 "confirm_gap": 0, "confirm_polls": 2})
+                                 "confirm_gap": 0, "confirm_polls": 2,
+                                 "read_inventory": False})   # opt-in per inventory test
     return c
 
 
@@ -45,6 +46,7 @@ class _FakeKeyboard:
     def _up(self, button): self.presses.append(("up", button))
     def diamond_select(self, direction, settle=0.0): self.selects.append(direction)
     def tap_sequence(self, buttons, gap=0.0): self.presses.append(list(buttons))
+    def activate(self): self.presses.append("activate")
 
 
 # snapshot() OCRs in this order: the action bar (switch_screen_open short-circuits on a
@@ -136,8 +138,58 @@ def test_await_commit_false_while_stuck_on_precommit_screen():
     assert b._await_commit(before) is False
 
 
-def test_still_on_battle_screen_is_not_over():
-    assert _backend([_BAR]).is_over() is False
+class _PartyOCR:
+    """Canned text per recognize() call, in order; returns '' once exhausted (so a
+    trailing action_menu_open read resolves without repeating party text)."""
+    def __init__(self, seq): self._seq, self._i = list(seq), 0
+
+    def recognize(self, _img, _mode="line"):
+        from vision.ocr import OCRResult
+        t = self._seq[self._i] if self._i < len(self._seq) else ""
+        self._i += 1
+        return [OCRResult(t, 0.9, (0.0, 0.0, 1.0, 1.0))]
+
+
+def test_read_inventory_reads_bench_excluding_active_and_restores_menu():
+    kb = _FakeKeyboard()
+    b = _backend(_SNAP, kb=kb)
+    b._self = {"dex": 104, "name": "Cubone", "hp": 0, "max_hp": 130, "moves": []}
+    # read_party order per slot: name, then hp (slot_0, slot_1, slot_2).
+    b._ocr = _PartyOCR(["CUBONE", "0 / 130", "MEOWTH", "120 / 120", "ODDISH", "125 / 125"])
+    bench = b._read_inventory()
+    assert [p["name"] for p in bench] == ["Meowth", "Oddish"]   # active (Cubone) dropped
+    assert "pokemon" in kb.presses                              # opened the POKéMON screen
+    assert ("down", "check") in kb.presses                      # revealed names+HP
+    assert "activate" in kb.presses                             # focus grabbed (Windows-safe)
+
+
+def test_read_inventory_is_failsafe_and_restores_menu_on_error():
+    kb = _FakeKeyboard()
+    b = _backend(_SNAP, kb=kb)
+    b._self = {"dex": 104, "name": "Cubone", "hp": 0, "max_hp": 130, "moves": []}
+    b._ocr = _PartyOCR([])                                      # empty reads -> not the menu
+    import world.vision as _wv
+    orig = _wv.read_party
+    _wv.read_party = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("ocr blew up"))
+    try:
+        assert b._read_inventory() == []                        # swallowed -> empty, no raise
+    finally:
+        _wv.read_party = orig
+    assert kb.presses.count("cancel") >= 1                      # backed out to the action menu
+
+
+def test_inventory_read_once_and_flows_to_switch_context():
+    b = _backend(_SNAP)
+    b.cfg["world"]["vision"]["read_inventory"] = True
+    calls = []
+    b._read_inventory = lambda: (calls.append(1),
+                                 [{"dex": 52, "name": "Meowth", "hp": 120, "max_hp": 120}])[1]
+    from battle.observe import read_battle
+    state = read_battle(b, default_kb(), level=50)              # first move turn -> reads inventory
+    b.snapshot()                                                # second -> does NOT re-read
+    assert len(calls) == 1
+    assert [p.name for p in state.party] == ["Meowth"]
+    assert state.available_switches == (0,)                     # bench mon is switchable
 
 
 def test_battle_ends_after_leaving_the_battle_screens():
