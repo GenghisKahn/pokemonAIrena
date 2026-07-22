@@ -43,21 +43,28 @@ PARTY: dict[str, tuple[float, float, float, float]] = {
     "slot_2_name": (0.30, 0.380, 0.29, 0.045), "slot_2_hp": (0.44, 0.450, 0.18, 0.042),  # down
 }
 
-# Action menu — the reliable turn start ("A BATTLE  B POKéMON  S RUN"), with both
-# Pokémon panels visible. "bar" is the turn detector. self = the player's Pokémon = BLUE
-# (top-left); opp = RED (bottom-right). HP boxes are widened on the left so a leading digit
-# can't be clipped (avoids the 125->25 misread).
+# Action menu — the reliable turn start ("A BATTLE  B POKéMON  S RUN"), with both Pokémon
+# panels visible. "bar" is the turn detector. self = the player's Pokémon = BLUE (top-left);
+# opp = RED (bottom-right). HP boxes are widened on the left so a leading digit can't be
+# clipped (avoids the 125->25 misread).
 #
-# Boxes are relative to the GAME VIEWPORT (4:3), which capture.py auto-crops out of the
-# window (title bar + letterbox removed), so these are window-size-independent — no
-# per-size re-tuning. Calibrated on a live 1476x1120 viewport (macOS). Re-probe against a
-# cropped viewport frame (capture_region(...,'window')) only if the game's own HUD layout
-# changes.
-ACTION: dict[str, tuple[float, float, float, float]] = {
+# Boxes are relative to the GAME VIEWPORT (4:3), which capture.py::_crop_to_viewport auto-crops
+# out of the window (title bar + letterbox/pillarbox removed) on BOTH OSes. Verified: the crop
+# holds a ~4:3 viewport (aspect ~1.319) across window sizes AND non-4:3 window shapes, so these
+# ratios need no per-size re-tuning (assumes RetroArch renders 4:3, not stretched).
+#
+# `bar` + `self_*` are anchored to the viewport's top-left and read identically on both OSes.
+# Only `opp_*` — anchored to the RIGHT/BOTTOM edge — lands at different ratios, because the
+# Windows (PrintWindow, client-area) and macOS (screencapture -l, whole-window) crops trim
+# those edges slightly differently. So opp_* is split per platform; the rest is shared.
+_ACTION_SHARED: dict[str, tuple[float, float, float, float]] = {
     "bar":       (0.35, 0.065, 0.52, 0.060),   # BATTLE / POKéMON / RUN bar
     "self_name": (0.04, 0.140, 0.28, 0.055),   # BLUE, top-left — the player's mon
     "self_hp":   (0.05, 0.255, 0.28, 0.045),
-    "opp_name":  (0.70, 0.705, 0.28, 0.055),   # RED, bottom-right — the opponent
+}
+ACTION_MAC: dict[str, tuple[float, float, float, float]] = {
+    **_ACTION_SHARED,
+    "opp_name":  (0.70, 0.705, 0.28, 0.055),   # RED, bottom-right — macOS (screencapture -l)
     "opp_hp":    (0.71, 0.820, 0.26, 0.045),
 }
 ACTION_WIN: dict[str, tuple[float, float, float, float]] = {
