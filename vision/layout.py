@@ -31,14 +31,19 @@ MOVES: dict[str, tuple[float, float, float, float]] = {
 }
 
 # Action menu — the reliable turn start ("A BATTLE  B POKéMON  S RUN"), with both
-# Pokémon panels visible. Calibrated from a live 1194x1228 RetroArch window (macOS,
-# windowed). "bar" is the turn detector. self = the player's Pokémon = BLUE (top-left);
-# opp = RED (bottom-right). HP boxes are widened on the left so a leading digit can't be
-# clipped (avoids the 125->25 misread). Recalibrate with scripts/ocr_probe.py if aspect differs.
+# Pokémon panels visible. "bar" is the turn detector. self = the player's Pokémon = BLUE
+# (top-left); opp = RED (bottom-right). HP boxes are widened on the left so a leading digit
+# can't be clipped (avoids the 125->25 misread).
+#
+# Boxes are relative to the GAME VIEWPORT (4:3), which capture.py auto-crops out of the
+# window (title bar + letterbox removed), so these are window-size-independent — no
+# per-size re-tuning. Calibrated on a live 1476x1120 viewport (macOS). Re-probe against a
+# cropped viewport frame (capture_region(...,'window')) only if the game's own HUD layout
+# changes.
 ACTION: dict[str, tuple[float, float, float, float]] = {
-    "bar":       (0.34, 0.205, 0.52, 0.055),   # BATTLE / POKéMON / RUN bar
-    "self_name": (0.06, 0.255, 0.26, 0.055),   # BLUE, top-left — the player's mon
-    "self_hp":   (0.05, 0.340, 0.30, 0.045),
-    "opp_name":  (0.70, 0.665, 0.26, 0.055),   # RED, bottom-right — the opponent
-    "opp_hp":    (0.67, 0.748, 0.31, 0.045),
+    "bar":       (0.35, 0.065, 0.52, 0.060),   # BATTLE / POKéMON / RUN bar
+    "self_name": (0.04, 0.140, 0.28, 0.055),   # BLUE, top-left — the player's mon
+    "self_hp":   (0.05, 0.255, 0.28, 0.045),
+    "opp_name":  (0.70, 0.705, 0.28, 0.055),   # RED, bottom-right — the opponent
+    "opp_hp":    (0.71, 0.820, 0.26, 0.045),
 }

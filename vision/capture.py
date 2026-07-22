@@ -76,9 +76,57 @@ def _find_window_id(match: str):
     return _pick_window(infos, match)
 
 
+def _crop_to_viewport(img: Image.Image, black: int = 16, sample: int = 6,
+                      min_frac: float = 0.35) -> Image.Image:
+    """Crop a captured window down to the game's render area, so normalized layout boxes
+    are identical at any window size.
+
+    A window capture wraps the game in a macOS title bar (top) and black letterbox bars
+    (the game keeps a 4:3 aspect, the window rarely matches). We isolate the render area
+    as the *tallest* contiguous band of non-black rows — the title bar is a much smaller
+    band, so it's excluded — then trim the black side margins within that band. If the
+    result is degenerate (e.g. a fully dark frame), the original image is returned so
+    observe still gets something rather than raising."""
+    g = img.convert("L")
+    W, H = g.size
+    px = g.load()
+
+    def row_has_content(y: int) -> bool:
+        return any(px[x, y] > black for x in range(0, W, sample))
+
+    best = (0, 0)
+    cur = None
+    for y in range(H):
+        if row_has_content(y):
+            if cur is None:
+                cur = y
+        elif cur is not None:
+            if y - cur > best[1] - best[0]:
+                best = (cur, y)
+            cur = None
+    if cur is not None and H - cur > best[1] - best[0]:
+        best = (cur, H)
+    top, bot = best
+    if bot - top < min_frac * H:
+        return img                                   # detection failed -> full frame
+
+    def col_has_content(x: int) -> bool:
+        return any(px[x, y] > black for y in range(top, bot, sample))
+
+    left, right = 0, W
+    while left < W and not col_has_content(left):
+        left += 1
+    while right > left and not col_has_content(right - 1):
+        right -= 1
+    if right - left < min_frac * W:
+        left, right = 0, W
+    return img.crop((left, top, right, bot))
+
+
 def _grab_window(match: str) -> Image.Image:
     """macOS: capture the window matching `match` by its CGWindowID (position/size/
-    z-order independent). Needs Screen Recording permission and the window on-screen."""
+    z-order independent), cropped to the game's render area so layout boxes hold at any
+    window size. Needs Screen Recording permission and the window on-screen."""
     wid = _find_window_id(match)
     if wid is None:
         raise RuntimeError(
@@ -93,7 +141,7 @@ def _grab_window(match: str) -> Image.Image:
                        check=True, capture_output=True)
         img = Image.open(path)
         img.load()
-        return img.convert("RGB")
+        return _crop_to_viewport(img.convert("RGB"))
     finally:
         if os.path.exists(path):
             os.unlink(path)

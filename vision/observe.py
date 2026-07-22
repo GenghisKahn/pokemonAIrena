@@ -13,7 +13,8 @@ from kb import KB
 from vision import layout as _layout
 from vision.capture import crop_norm
 
-_HP = re.compile(r"(\d+)\s*[/il|]\s*(\d+)")   # tolerate OCR misreads of '/'
+_HP = re.compile(r"(\d+)\s*[/il|\s]\s*(\d+)")   # tolerate OCR misreads of '/' (incl. dropped
+#                                                to whitespace when OCR splits "105/105" -> "105","105")
 
 _MOVE_SLOTS = ("move_0", "move_1", "move_2", "move_3")
 
