@@ -277,14 +277,32 @@ class VisionBackend:
                 return True
         return False
 
+    def _advance_popups(self) -> None:
+        """Between decisions the game shows message boxes ("X fainted!", "Go! Y!", "There's
+        no will to fight!") that block progress until dismissed — and a faint drops you onto
+        one before the forced-switch screen, which is where the loop otherwise gets stuck.
+        So while idle, tap the advance key (Z) to clear them, with the mouse-mover already
+        running (RetroArch processes input only while the cursor moves — MacKeyboard owns
+        that; Windows delivers via SendInput). GUARDED: never advance when a real input
+        screen is up (action bar / pre-commit / forced switch) — there Z would open the move
+        diamond or mis-commit. So this only ever nudges pure message/animation frames along.
+        Cross-platform: everything here is the keyboard/OCR interface, so it runs on both OSes."""
+        v = self.cfg["world"].get("vision", {})
+        if not v.get("advance_popups", True):
+            return
+        if self._input_screen_open(self._frame()):
+            return                                            # a real decision — leave it be
+        self._keyboard().press(v.get("advance_button", "select"))   # Z: dismiss the message box
+
     def step(self) -> None:
         """Commit the queued move/switch via the diamond primitive, retrying until the
         input is ACCEPTED (we leave the input screens), not merely until HP moves — a
         status move / miss / 0-damage hit must still count as committed. With nothing
-        queued, poll-sleep."""
+        queued, advance any blocking message popup, then poll-sleep."""
         v = self.cfg["world"].get("vision", {})
         action, self.pending = self.pending, None
         if action is None:
+            self._advance_popups()                            # clear faint/send-out message boxes
             time.sleep(v.get("poll", 0.3))
             return
         direction = self._direction_for(action)

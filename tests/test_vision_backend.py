@@ -192,6 +192,24 @@ def test_inventory_read_once_and_flows_to_switch_context():
     assert state.available_switches == (0,)                     # bench mon is switchable
 
 
+def test_idle_step_advances_message_popups_off_menu():
+    # No input screen up (empty bar = a message/animation frame) -> tap advance (Z).
+    kb = _FakeKeyboard()
+    b = _backend([""], kb=kb)
+    b.pending = None
+    b.step()
+    assert "select" in kb.presses                          # dismissed the popup
+
+
+def test_idle_step_does_not_advance_on_a_real_menu():
+    # Action bar showing -> a real decision; must NOT press Z (would open the move diamond).
+    kb = _FakeKeyboard()
+    b = _backend([_BAR], kb=kb)
+    b.pending = None
+    b.step()
+    assert "select" not in kb.presses
+
+
 def test_battle_ends_after_leaving_the_battle_screens():
     # A settled non-battle screen (no bar, no panels) for end_polls checks -> battle over.
     b = _backend([""])                            # empty/result screen

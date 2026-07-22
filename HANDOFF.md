@@ -21,7 +21,7 @@ turn loop; the agent proposes a move, a guardrail gate vets it, `send_input()` a
 
 | Layer | State |
 |---|---|
-| Battle core (types, damage, guardrails), mock backend, **64 tests** | ✅ Done & passing |
+| Battle core (types, damage, guardrails), mock backend, **73 tests** | ✅ Done & passing |
 | **Knowledge base** — 151 species base stats + **all 165 Gen 1 moves** | ✅ **Complete** (was 18 moves) |
 | **Observe** (window capture → OCR → both panels + turn detection) | ✅ Solid & window-size-independent |
 | Emulator config (windowed, no-pause, no crash-on-load) | ✅ Fixed & locked |
@@ -29,9 +29,8 @@ turn loop; the agent proposes a move, a guardrail gate vets it, `send_input()` a
 | **Diamond cell calibration** (`MOVES` / `PARTY` boxes) | ✅ **Calibrated live** (reads real moves/party) |
 | **Faint / switch flow** | ✅ Live-verified (auto-switched to a type-correct mon) |
 | **Battle-end + winner detection** (`is_over` / `result`) | ✅ **Done & live-verified** on a real result screen |
-| **A full 3-Pokémon battle, end to end** | ✅ **Played to conclusion** by an auto-player (macOS) |
+| **`python app.py` driven by the *agent*, start to win/loss** | ✅ **DONE** — ran a full 9-turn battle autonomously (headless Claude CLI) |
 | **Windows support** (capture · OCR · input) — merged from PR #1 | ◑ Observe + move-fire live-verified on Windows; not yet driven to a full game |
-| `python app.py` driven by the *agent* (heuristic/LLM), start to win/loss | 🔧 the one remaining live pass |
 
 **Bottom line:** every mechanic is built, tested, and live-verified. An auto-player drove a **complete
 battle** — Squirtle → (fainted) → Sandshrew → (fainted) → Clefairy, KO'd Oddish, lost to Psyduck's crit —
@@ -185,6 +184,46 @@ OS-agnostic by construction (it goes through the keyboard/OCR interfaces); the o
 `a`→N64 B; Windows: `0x1E`) — verify it actually opens POKéMON; (2) the party OCR reuses the forced-switch
 `PARTY` boxes, still macOS-calibrated, so the diamond cells want a Windows-crop calibration. Logic is unit-
 tested (bench excludes active; fail-safe restores the menu; read happens once and flows to `available_switches`).
+
+## Autonomous run — `python app.py` (done, headless CLI)
+
+`app.py` ran a **complete 9-turn battle on its own** — the harness observed, decided, and acted with no
+per-turn human input; every move was chosen by Claude via the **`claudecli`** provider. Loop per turn
+(`harness/loop.py`): `awaiting_input()` → `read_battle()` (OCR + KB) → `player.decide()` → gate → `send_input`
+→ `step()` → repeat until `is_over()`. Result correctly detected (`winner: opponent`, matching the on-screen
+LOSE screen). The agent's **moves and types are the decision context** — `LLMPlayer._prompt` feeds each legal
+move's type, power, effectiveness-vs-opponent, and estimated damage, plus both actives' types.
+
+**Providers (`agent/providers.py`, pick via `agent.provider`):** `claude` (Anthropic API, needs a key) ·
+`llamacpp` (local `llama-server`) · **`claudecli`** (shells to `claude -p` — your Claude subscription, no
+key, no server; the way to test the loop on a machine running Claude Code). Config default is `claudecli`.
+
+**Live-loop robustness (found running it for real; unit tests don't exercise timing):**
+- **`is_over()` false-end fix** — a normal move ANIMATION hides the panels/bar, so the old `end_polls=5`
+  debounce mistook it for battle-over (quit after 1 turn). `battle_result` (WIN/LOSE screen) is the real
+  end signal; the debounce backstop is now `end_polls=40`.
+- **`eager_keyboard`** — `reset()` brings the keyboard (mouse-mover) up immediately, so a live game can't
+  stall before the first action menu (RetroArch idle-throttle).
+- **`advance_popups`** — while idle, `_advance_popups()` taps **Z** to dismiss blocking message boxes
+  ("X fainted!" / "Go! Y!" / "no will to fight") so the loop reaches the next decision instead of getting
+  **stuck on a faint popup** before the forced-switch screen. GUARDED by `_input_screen_open()` — it never
+  presses Z when the action bar / pre-commit / forced-switch screen is up (there Z would open the diamond).
+  All three are `world.vision.*` config knobs.
+
+## Cross-platform (macOS + Windows) status of the loop features
+
+The whole loop + all three robustness features go through the keyboard/OCR interfaces, so they are
+**OS-agnostic by construction** and run on Windows too. Per-OS specifics and what still needs a live pass:
+- **`advance_popups` / `eager_keyboard` / `is_over`** — logic identical on both; the only OS difference is
+  input delivery (macOS `CGEventPostToPid` + a persistent mouse-mover; Windows `SendInput`). The mouse-mover
+  is macOS-only (it fixes RetroArch's idle-throttle there); on Windows `SendInput` doesn't need it, but
+  whether Windows RetroArch keeps rendering during idle polls is **unverified** — if it throttles, the
+  Windows path needs its own nudge. `advance_button`/`pokemon_button` use shared keymap names resolved
+  per-OS.
+- **Windows still-unverified end-to-end:** `diamond_select`/peek through the harness, the `MOVES`/`PARTY`/
+  inventory OCR on the PrintWindow crop (macOS-calibrated), faint-switch, and `battle_result`. And on
+  Windows, `SendInput` needs the window focused — `activate()` is called at keyboard creation and before
+  the inventory read, but a per-act re-`activate()` may be needed if focus drifts (see Windows-support gaps).
 
 ## Scratch artifacts (in `/tmp`)
 
