@@ -14,6 +14,10 @@ _Last updated: 2026-07-22. Authoritative current-state briefing. Supersedes olde
 > - **Input:** `world/keyboard.py::WindowsKeyboard` — SendInput hardware scancodes. **No mouse-nudge
 >   and no App-Nap workaround needed** (those are macOS-only); the 0.3s hold still applies. The
 >   mouse-nudge/PostToPid parts of the input model below are macOS-specific — ignore them here.
+>   Three Windows-input fixes were required (all in `WindowsKeyboard`): (1) the `INPUT` struct must
+>   be 40 bytes — the union needs `MOUSEINPUT`, else `SendInput` returns 0 and sends nothing; (2)
+>   `activate()` must force-focus via AttachThreadInput (plain SetForegroundWindow is refused for a
+>   background process, so keys go to the wrong window); (3) this config binds A←`z` key, B←`a` key.
 > - **OCR:** Tesseract with red-channel + 5x-upscale preprocessing and `word`/`number`/`line` modes
 >   (`vision/ocr.py`); macOS uses Apple Vision. Both feed the same `observe`.
 > - **Layout:** `vision/layout.py` splits `ACTION_WIN` / `ACTION_MAC` (opp panel differs by capture
@@ -21,8 +25,15 @@ _Last updated: 2026-07-22. Authoritative current-state briefing. Supersedes olde
 >
 > **✅ Live-verified on Windows:** observe end-to-end at the action menu (turn detection, both species
 > Squirtle vs Meowth, HP), window-size- and aspect-independent (~1.319 viewport crop). 56 tests pass.
-> **Next on Windows:** drive the move-select flow — the shared `z → cancel/check → hold w → diamond`
-> path below — via `WindowsKeyboard`, then find the commit key (upstream's open blocker).
+> **✅ MOVE SELECTION SOLVED (upstream's "ONE BLOCKER"):** the full commit works on Windows —
+> `a` (A/BATTLE) → move-select screen → hold `r` (R/Check) renders the move diamond (▲SURF ◀WITHDRAW
+> ▶ICE BEAM ▼STRENGTH + type/PP) → press the diamond direction (`dia_up`/`dia_left`/`dia_right`/
+> `dia_down` = PgUp/Home/PgDn/End) to **select AND fire** the move. Proven: Surf → Meowth 120→50 →
+> turn resolved → back at action menu. (Note: the "commit" is just pressing the C-diamond direction;
+> no separate confirm key — upstream's blocker was really the broken SendInput struct + focus, above.)
+> **Next on Windows:** wire this into `world/vision.py` — press A, hold R + OCR the diamond to read
+> the 4 moves (calibrate `vision/layout.py::MOVES` to the diamond cells), map slot → `dia_*` in
+> `_MOVE_KEYS`; then battle-end/faint detection for a full game.
 > **Windows detail lives in `PROGRESS.md` (Windows port section).**
 
 ## Goal

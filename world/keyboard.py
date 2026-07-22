@@ -27,23 +27,30 @@ import sys
 import time
 
 # ---- macOS: RetroPad button -> Quartz virtual keycode --------------------------
+# NOTE: macOS binds are upstream's; the move-diamond keys (dia_*) are the standard nav-key
+# keycodes but UNVERIFIED on mac — the Windows values below are the user-confirmed ones.
 _MAC_KEYCODES = {
     "a": 7,       # X
     "b": 6,       # Z
     "l": 12,      # Q  (N64 L shoulder — Stadium: Cancel)
     "r": 13,      # W  (N64 R shoulder — Stadium: Check)
     "up": 126, "down": 125, "left": 123, "right": 124,
+    "dia_up": 116, "dia_left": 115, "dia_right": 121, "dia_down": 119,  # PgUp/Home/PgDn/End
     "start": 36,  # Return
     "select": 60,  # Right Shift
 }
 
 # ---- Windows: RetroPad button -> (hardware scancode, is_extended_key) -----------
+# Key binds confirmed live by the user (this RetroArch config): A button=z key, B button=a key,
+# L=q, R=w, and the Stadium move DIAMOND is the PgUp/Home/PgDn/End nav cluster (▲/◀/▶/▼).
 _WIN_SCANCODES = {
-    "a": (0x2D, False),   # X
-    "b": (0x2C, False),   # Z
+    "a": (0x2C, False),   # A button  <- Z key
+    "b": (0x1E, False),   # B button  <- A key
     "l": (0x10, False),   # Q  (N64 L shoulder — Stadium: Cancel)
     "r": (0x11, False),   # W  (N64 R shoulder — Stadium: Check)
     "up": (0x48, True), "down": (0x50, True), "left": (0x4B, True), "right": (0x4D, True),
+    # move diamond: ▲=PgUp ◀=Home ▶=PgDn ▼=End (extended nav keys)
+    "dia_up": (0x49, True), "dia_left": (0x47, True), "dia_right": (0x51, True), "dia_down": (0x4F, True),
     "start": (0x1C, False),   # Enter
     "select": (0x36, False),  # Right Shift
 }
@@ -144,14 +151,24 @@ class WindowsKeyboard(_Keyboard):
 
     def _build_structs(self):  # pragma: no cover - Windows only
         ctypes, wintypes = self._ctypes, self._wintypes
+        ULONG_PTR = ctypes.c_size_t   # ULONG_PTR is pointer-width (8 bytes on Win64)
 
         class KEYBDINPUT(ctypes.Structure):
             _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD),
                         ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD),
-                        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong))]
+                        ("dwExtraInfo", ULONG_PTR)]
+
+        class MOUSEINPUT(ctypes.Structure):
+            # Present ONLY so the union is sized correctly: MOUSEINPUT (32 bytes on Win64)
+            # is the largest INPUT union member, making sizeof(INPUT) == 40. Without it the
+            # union is 24 bytes, sizeof(INPUT) == 32, and SendInput rejects the wrong cbSize
+            # and returns 0 (no input sent).
+            _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG),
+                        ("mouseData", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
+                        ("time", wintypes.DWORD), ("dwExtraInfo", ULONG_PTR)]
 
         class _INPUTunion(ctypes.Union):
-            _fields_ = [("ki", KEYBDINPUT)]
+            _fields_ = [("ki", KEYBDINPUT), ("mi", MOUSEINPUT)]
 
         class INPUT(ctypes.Structure):
             _fields_ = [("type", wintypes.DWORD), ("u", _INPUTunion)]
@@ -163,7 +180,7 @@ class WindowsKeyboard(_Keyboard):
         KEYEVENTF_SCANCODE, KEYEVENTF_KEYUP, KEYEVENTF_EXTENDEDKEY = 0x0008, 0x0002, 0x0001
         flags = KEYEVENTF_SCANCODE | (KEYEVENTF_EXTENDEDKEY if extended else 0) \
             | (KEYEVENTF_KEYUP if keyup else 0)
-        ki = self._KEYBDINPUT(0, scan, flags, 0, None)
+        ki = self._KEYBDINPUT(0, scan, flags, 0, 0)
         inp = self._INPUT()
         inp.type = 1                      # INPUT_KEYBOARD
         inp.u.ki = ki
@@ -176,26 +193,43 @@ class WindowsKeyboard(_Keyboard):
         self._send(button, keyup=True)
 
     def activate(self) -> None:  # pragma: no cover - Windows only
-        """Best-effort: bring a RetroArch window to the foreground (non-fatal)."""
+        """Force the RetroArch window to the foreground so SendInput reaches it.
+
+        SendInput delivers to the FOCUSED window, and a background process's plain
+        SetForegroundWindow is silently refused by Windows — so we use the AttachThreadInput
+        trick (attach to the target's input thread, then SetForegroundWindow succeeds). Match
+        by window class 'RetroArch' (not title) so an Explorer folder can't be grabbed.
+        Best-effort (non-fatal). Call it immediately before sending keys."""
+        ctypes, wintypes, u = self._ctypes, self._wintypes, self._user32
         try:
-            EnumWindows = self._user32.EnumWindows
-            GetWindowTextW, GetWindowTextLengthW = self._user32.GetWindowTextW, self._user32.GetWindowTextLengthW
-            SetForegroundWindow = self._user32.SetForegroundWindow
+            u.IsWindowVisible.argtypes = [wintypes.HWND]
+            u.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+            u.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+            u.GetWindowThreadProcessId.restype = wintypes.DWORD
             found = []
 
-            @self._ctypes.WINFUNCTYPE(self._wintypes.BOOL, self._wintypes.HWND, self._wintypes.LPARAM)
+            @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
             def _cb(hwnd, _lparam):
-                n = GetWindowTextLengthW(hwnd)
-                buf = self._ctypes.create_unicode_buffer(n + 1)
-                GetWindowTextW(hwnd, buf, n + 1)
-                if "RetroArch" in buf.value:
-                    found.append(hwnd)
-                    return False
+                if u.IsWindowVisible(hwnd):
+                    cls = ctypes.create_unicode_buffer(256)
+                    u.GetClassNameW(hwnd, cls, 256)
+                    if cls.value == "RetroArch":
+                        found.append(hwnd)
+                        return False
                 return True
 
-            EnumWindows(_cb, 0)
-            if found:
-                SetForegroundWindow(found[0])
+            u.EnumWindows(_cb, 0)
+            if not found:
+                return
+            hwnd = found[0]
+            cur = ctypes.windll.kernel32.GetCurrentThreadId()
+            tgt = u.GetWindowThreadProcessId(hwnd, None)
+            u.AttachThreadInput(cur, tgt, True)
+            try:
+                u.BringWindowToTop(hwnd)
+                u.SetForegroundWindow(hwnd)
+            finally:
+                u.AttachThreadInput(cur, tgt, False)
         except Exception:
             pass
 

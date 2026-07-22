@@ -11,8 +11,11 @@ from world.keyboard import MacKeyboard, _win_key, make_keyboard
 
 
 def test_win_key_mapping():
-    assert _win_key("a") == (0x2D, False)        # X, not extended
+    # This RetroArch config (user-confirmed live): A button <- Z key, B button <- A key.
+    assert _win_key("a") == (0x2C, False)         # A button = Z key, not extended
+    assert _win_key("b") == (0x1E, False)         # B button = A key
     assert _win_key("up") == (0x48, True)         # arrow keys are extended
+    assert _win_key("dia_up") == (0x49, True)     # move diamond ▲ = PgUp (extended)
     assert _win_key("start") == (0x1C, False)     # Enter
     with pytest.raises(KeyError):
         _win_key("turbo")
