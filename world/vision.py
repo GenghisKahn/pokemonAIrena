@@ -65,6 +65,7 @@ class VisionBackend:
         self._winner: str | None = None        # "self" | "opponent" | None (unknown)
         self._off_screen = 0                   # consecutive non-battle frames (end debounce)
         self._inventory_read = False           # read the full team roster once, at battle start
+        self._events: list[str] = []           # effect messages seen since the last decision
         # Bring the keyboard up NOW so its mouse-mover runs for the whole battle. RetroArch
         # throttles when the cursor is idle, and the harness loop's between-turn polls
         # (awaiting_input/step) don't otherwise create the keyboard — so a live game can stall
@@ -97,13 +98,22 @@ class VisionBackend:
 
     # ---- observe -----------------------------------------------------------
     def awaiting_input(self) -> bool:
-        """A decision is needed when either the action bar (move turn) or the forced-
-        switch screen (a Pokemon fainted) is up — inferred from on-screen prompts."""
+        """A decision is needed when the action bar (move turn) or the forced-switch screen
+        (a Pokemon fainted) is up — inferred from on-screen prompts.
+
+        BUT: if our active reads fainted (hp 0) on an action-bar frame, that's a message /
+        transition, not a real move turn — return False so the loop idles (dismissing the
+        popup) and waits for the forced-switch screen, instead of trying to move / re-select
+        a fainted mon (which the game rejects with "There's no will to fight!")."""
         if self._done:
             return False
         frame, ocr = self._frame(), self._ocr_engine()
-        return (action_menu_open(frame, ocr, self.kb, _layout.ACTION)
-                or switch_screen_open(frame, ocr, self.kb, _layout.ACTION))
+        if switch_screen_open(frame, ocr, self.kb, _layout.ACTION):
+            return True                                   # forced switch — always a decision
+        if action_menu_open(frame, ocr, self.kb, _layout.ACTION):
+            panels = read_panels(frame, ocr, self.kb, _layout.ACTION)
+            return panels["self"].get("hp") != 0          # skip a fainted-active "move" frame
+        return False
 
     def _mon(self, o: dict, attr: str) -> None:
         """Build/refresh a cached active from an OCR'd {name, hp, max_hp} via the KB."""
@@ -152,8 +162,7 @@ class VisionBackend:
 
     def snapshot(self) -> dict:
         frame, ocr = self._frame(), self._ocr_engine()
-        # Which decision is this? A move turn (action bar) or a forced switch (faint)?
-        forced_switch = (switch_screen_open(frame, ocr, self.kb, _layout.ACTION)
+        switch_screen = (switch_screen_open(frame, ocr, self.kb, _layout.ACTION)
                          and not action_menu_open(frame, ocr, self.kb, _layout.ACTION))
         panels = read_panels(frame, ocr, self.kb, _layout.ACTION)
         self._mon(panels["self"], "_self")
@@ -164,9 +173,21 @@ class VisionBackend:
                 "self_name/opp_name in vision/layout.py (ACTION)."
             )
 
+        # A FAINTED active (hp 0) is a forced switch, full stop — NEVER a move turn. Otherwise
+        # the harness peeks/commits a move for a fainted mon (or re-picks it as the switch
+        # target), which the game rejects with "There's no will to fight!" and the loop spins.
+        self_fainted = self._self["hp"] == 0
+        forced_switch = self_fainted or switch_screen
+
         if forced_switch:
             self._awaiting = "switch"
             self._party = self._peek_party()
+            # Keep every party slot (so index -> diamond cell stays aligned), but force the
+            # just-fainted active to hp 0 so it's excluded from available_switches even if its
+            # HP misreads — never offer a fainted Pokémon to switch to.
+            for p in self._party:
+                if p.get("name") == self._self["name"]:
+                    p["hp"] = 0
             if self._party and not any((p.get("hp") or 0) > 0 for p in self._party):
                 self._done, self._winner = True, "opponent"     # nothing left to send out
         else:
@@ -237,7 +258,34 @@ class VisionBackend:
             },
             "self_party": [self._party_view(p) for p in self._party],
             "opp": {"dex": opp["dex"], "hp": opp["hp"], "max_hp": opp["max_hp"], "status": None},
+            "events": self._take_events(),
         }
+
+    # ---- effects (best-effort message capture) ------------------------------
+    _EVENT_KEYWORDS = ("ROSE", "FELL", "SHARPLY", "SUPER EFFECTIVE", "NOT VERY EFFECTIVE",
+                       "CRITICAL", "PARALY", "ASLEEP", "FELL ASLEEP", "FROZE", "BURN",
+                       "POISON", "CONFUS", "FLINCH", "MISSED", "AVOIDED", "SEEDED")
+
+    def _scan_events(self, frame=None) -> None:
+        """Best-effort: OCR the message banner and record notable EFFECT lines (stat changes,
+        crits, status, effectiveness) so the agent's battle log knows e.g. the opponent's
+        DEFENSE rose. Keyword-filtered so a mis-framed box yields few false positives; fully
+        fail-safe. ⚠️ Recall depends on a live calibration of vision/layout.MESSAGE."""
+        if not self.cfg["world"].get("vision", {}).get("track_events", True):
+            return
+        try:
+            text = _region_text(frame or self._frame(), self._ocr_engine(), _layout.MESSAGE).upper()
+        except Exception:
+            return
+        if not any(k in text for k in self._EVENT_KEYWORDS):
+            return
+        line = " ".join(text.split())
+        if line and line not in self._events:
+            self._events.append(line)
+
+    def _take_events(self) -> list[str]:
+        ev, self._events = self._events, []          # report once, then clear for the next turn
+        return ev
 
     # ---- act ---------------------------------------------------------------
     def send_action(self, action: Action) -> None:
@@ -290,7 +338,9 @@ class VisionBackend:
         v = self.cfg["world"].get("vision", {})
         if not v.get("advance_popups", True):
             return
-        if self._input_screen_open(self._frame()):
+        frame = self._frame()
+        self._scan_events(frame)                              # capture effects shown in the popup
+        if self._input_screen_open(frame):
             return                                            # a real decision — leave it be
         self._keyboard().press(v.get("advance_button", "select"))   # Z: dismiss the message box
 
@@ -319,7 +369,12 @@ class VisionBackend:
             kbd.diamond_select(direction)
             if self._await_commit(before):                    # input accepted -> turn is resolving
                 break
-        time.sleep(v.get("turn_wait", 4.0))                   # let the turn animate out
+        # let the turn animate out, scanning the message banner for effects as it plays
+        total = v.get("turn_wait", 4.0)
+        steps = max(1, int(total / max(v.get("poll", 0.3), 0.1)))
+        for _ in range(steps):
+            self._scan_events()
+            time.sleep(total / steps)
         self._self["moves"] = [] if action.kind == "switch" else self._self["moves"]
 
     @staticmethod

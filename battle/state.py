@@ -51,6 +51,7 @@ class BattleState:
     available_moves: tuple[int, ...]        # move slots with PP > 0
     available_switches: tuple[int, ...]     # party indices that aren't fainted
     awaiting: str | None                    # "move" | "switch" | None (nothing to decide)
+    events: tuple[str, ...] = ()            # notable messages since last decision (e.g. a stat boost)
 
 
 @dataclass(frozen=True)

@@ -73,6 +73,31 @@ def test_forced_switch_detected():
     assert _backend(["R CHECK"]).awaiting_input() is True
 
 
+def test_fainted_active_is_not_a_move_turn():
+    # Action bar shows but our active reads fainted (hp 0) -> NOT a move turn (wait for the
+    # forced-switch screen instead of trying to move / re-select the fainted mon).
+    ocr = [_BAR, _BAR, "SQUIRTLE", "0 / 150", "MAGNEMITE", "105 / 105"]
+    assert _backend(ocr).awaiting_input() is False
+    # a live active on the same bar IS a move turn
+    ocr_live = [_BAR, _BAR, "SQUIRTLE", "124 / 150", "MAGNEMITE", "105 / 105"]
+    assert _backend(ocr_live).awaiting_input() is True
+
+
+def test_forced_switch_excludes_the_fainted_active():
+    kb = _FakeKeyboard()
+    b = _backend([_BAR], kb=kb)
+    b._self = {"dex": 35, "name": "Clefairy", "hp": 0, "max_hp": 176, "moves": []}
+    b._opp = {"dex": 81, "name": "Magnemite", "hp": 26, "max_hp": 131, "moves": []}
+    b._mon = lambda o, attr: None                              # keep the manual actives
+    # party read even MISREADS the fainted Clefairy as alive; a live bench mon is present.
+    b._peek_party = lambda: [{"name": "Clefairy", "hp": 176, "max_hp": 176},
+                             {"name": "Sandshrew", "hp": 130, "max_hp": 156}]
+    snap = b.snapshot()
+    assert snap["awaiting"] == "switch"                        # fainted active -> forced switch
+    hps = [p["hp"] for p in snap["self_party"]]
+    assert hps[0] == 0 and hps[1] > 0                          # Clefairy forced fainted, Sandshrew live
+
+
 def test_snapshot_reads_both_actives_from_the_screen():
     # Clefairy/Oddish aren't in config's teams — resolved purely via the KB (all 151).
     state = read_battle(_backend(_SNAP), default_kb(), level=50)

@@ -210,6 +210,28 @@ key, no server; the way to test the loop on a machine running Claude Code). Conf
   presses Z when the action bar / pre-commit / forced-switch screen is up (there Z would open the diamond).
   All three are `world.vision.*` config knobs.
 
+## Agent decision-making (fainted-safe, matchup-aware, battle log)
+
+- **Never selects a fainted Pokémon.** A fainted active (hp 0) is treated as a **forced switch**,
+  never a move turn (`awaiting_input` skips a fainted-active "move" frame; `snapshot` forces the
+  switch path). The just-fainted active is forced to hp 0 in the party read so it's excluded from
+  `available_switches` — **but kept in the party list** so `index → diamond cell` stays aligned (dropping
+  it would shift indices and make the switch pick the wrong/fainted cell). This fixes the loop that got
+  **stuck re-picking a fainted mon** (the game's "There's no will to fight!" is that rejection, NOT an
+  end screen).
+- **Matchup-aware switching.** `LLMPlayer._prompt` now flags when the opponent hits the active
+  super-effectively (`WARNING: …`) and lists each legal switch with its matchup (RESISTS / WEAK to /
+  neutral, plus how its STAB hits the opponent). `_SYSTEM` tells it to switch on a bad matchup instead
+  of always attacking.
+- **Battle log / move history.** `LLMPlayer` keeps a per-battle log — each turn it derives what happened
+  from the state delta (move used, damage dealt/taken, switches) and prepends recent lines to the prompt,
+  so the (stateless per-call) model has memory of the fight.
+- **Effects (best-effort).** `BattleState.events` carries notable message-banner lines; the backend's
+  `_scan_events` OCRs `layout.MESSAGE` for keyword effects (stat **rose/fell**, crit, status, effectiveness)
+  during the turn/popups, keyword-filtered so a mis-framed box gives few false positives. This is how the
+  agent learns e.g. "opponent's DEFENSE rose." ⚠️ Recall needs a live calibration of `layout.MESSAGE`
+  (`track_events` config; HP-delta history works regardless).
+
 ## Cross-platform (macOS + Windows) status of the loop features
 
 The whole loop + all three robustness features go through the keyboard/OCR interfaces, so they are

@@ -28,6 +28,9 @@ world:
     advance_button: select # keymap name of the message-advance key (Z on both OS configs)
     eager_keyboard: true   # bring the keyboard (mouse-mover) up at reset() so the game never
                            # stalls before the first action menu (RetroArch idle-throttle)
+    track_events: true     # best-effort: OCR the message banner for turn EFFECTS (stat boosts,
+                           # crits, status, effectiveness) -> the agent's battle log. Keyword-
+                           # filtered; recall needs a live calibration of layout.MESSAGE.
   project64:
     host: 127.0.0.1
     port: 8082             # local bridge exposed by the Project64 script

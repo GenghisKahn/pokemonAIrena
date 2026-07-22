@@ -67,10 +67,18 @@ _ACTION_RE = re.compile(r"\b(move|switch)\s+(\d+)\b", re.IGNORECASE)
 _SYSTEM = (
     "You are choosing one action in a Gen 1 (Pokemon Stadium) battle. "
     "Reply with EXACTLY one line and nothing else: `move <slot>` to use one of your "
-    "moves, or `switch <index>` to switch to a benched Pokemon. Pick only from the "
-    "legal options given. Prefer super-effective, STAB damage; switch away from a "
-    "bad matchup. No explanation."
+    "moves, or `switch <index>` to switch to a benched Pokemon. Pick only from the legal "
+    "options given. Prefer super-effective, STAB damage. But SWITCH instead of attacking "
+    "when your active is at a bad matchup — the opponent hits it super-effectively and a "
+    "benched Pokemon resists that type or threatens back; don't just attack every turn. "
+    "Use the recent battle log for context (what was used, damage dealt, stat changes). "
+    "No explanation."
 )
+
+
+def _incoming(defender, attacker, kb: KB) -> float:
+    """Worst-case STAB multiplier `attacker`'s types land on `defender`."""
+    return max((kb.type_multiplier(t, defender.types) for t in attacker.types), default=1.0)
 
 
 class LLMPlayer:
@@ -89,43 +97,82 @@ class LLMPlayer:
             from agent.providers import make_provider
             provider = make_provider(cfg["agent"])
         self.provider = provider
+        self._history: list[str] = []          # human-readable log of prior turns
+        self._prev: tuple[BattleState, Action] | None = None   # last (state, action)
 
     def decide(self, state: BattleState, kb: KB) -> Action:
+        self._record(state)                    # log what happened since our last decision
         try:
             reply = self.provider.complete(_SYSTEM, self._prompt(state, kb))
             action = self._parse(reply, state)
-            if action is not None:
-                return action
+            if action is None:
+                action = self.fallback.decide(state, kb)
         except Exception:
-            pass  # any provider/network/parse error -> heuristic keeps the turn legal
-        return self.fallback.decide(state, kb)
+            action = self.fallback.decide(state, kb)   # any provider/parse error -> stay legal
+        self._prev = (state, action)
+        return action
+
+    def _record(self, state: BattleState) -> None:
+        """Derive what changed since our last decision (moves used, damage, switches, and
+        any reported effects) and append one line to the running battle log the prompt shows."""
+        events = list(state.events or ())
+        if self._prev is None:
+            if events:
+                self._history.append("battle start — " + "; ".join(events))
+            return
+        prev, action = self._prev
+        parts: list[str] = []
+        if action.kind == "switch":
+            parts.append(f"you switched in {state.self_active.name}")
+        elif action.index < len(prev.self_active.moves):
+            parts.append(f"you used {prev.self_active.moves[action.index].name}")
+        if state.opp_active.name != prev.opp_active.name:
+            parts.append(f"opponent sent out {state.opp_active.name}")
+        else:
+            d = prev.opp_active.hp - state.opp_active.hp
+            if d > 0:
+                parts.append(f"{state.opp_active.name} took {d} ({state.opp_active.hp}/{state.opp_active.max_hp} left)")
+            elif d < 0:
+                parts.append(f"{state.opp_active.name} recovered {-d}")
+        if state.self_active.name == prev.self_active.name:
+            d = prev.self_active.hp - state.self_active.hp
+            if d > 0:
+                parts.append(f"your {state.self_active.name} took {d} ({state.self_active.hp}/{state.self_active.max_hp} left)")
+        if events:
+            parts.append("effects: " + "; ".join(events))
+        if parts:
+            self._history.append("; ".join(parts))
 
     def _prompt(self, state: BattleState, kb: KB) -> str:
         me, opp = state.self_active, state.opp_active
+        incoming = _incoming(me, opp, kb)
         lines = [
-            f"Your active: {me.name} ({'/'.join(me.types)}) "
-            f"HP {me.hp}/{me.max_hp}"
+            f"Your active: {me.name} ({'/'.join(me.types)}) HP {me.hp}/{me.max_hp}"
             + (f" status={me.status}" if me.status else ""),
             f"Opponent: {opp.name} ({'/'.join(opp.types)}) HP {opp.hp}/{opp.max_hp}",
-            "",
-            "Legal moves:" if state.available_moves else "Legal moves: none",
         ]
+        if incoming >= 2:
+            lines.append(f"WARNING: {opp.name}'s STAB is {incoming:g}x super-effective vs your "
+                         f"{me.name} — consider switching to a Pokemon that resists it.")
+        lines += ["", "Legal moves:" if state.available_moves else "Legal moves: none"]
         for i in state.available_moves:
             mv = me.moves[i]
             eff = kb.type_multiplier(mv.type, opp.types)
             dmg = estimate_damage(me, opp, mv, kb)
-            lines.append(
-                f"  move {i}: {mv.name} ({mv.type}, power {mv.power}, "
-                f"{eff:g}x, ~{dmg} dmg)"
-            )
+            lines.append(f"  move {i}: {mv.name} ({mv.type}, power {mv.power}, {eff:g}x, ~{dmg} dmg)")
         if state.available_switches:
-            lines.append("Legal switches:")
+            lines.append("Legal switches (matchup vs the current opponent):")
             for i in state.available_switches:
                 p = state.party[i]
-                lines.append(f"  switch {i}: {p.name} ({'/'.join(p.types)}) "
-                             f"HP {p.hp}/{p.max_hp}")
-        lines.append("")
-        lines.append("Your choice:")
+                takes = _incoming(p, opp, kb)                 # opp STAB vs this bench mon
+                deals = _incoming(opp, p, kb)                 # this bench mon's STAB vs opp
+                tag = "RESISTS" if takes < 1 else ("WEAK to" if takes >= 2 else "neutral vs")
+                lines.append(f"  switch {i}: {p.name} ({'/'.join(p.types)}) HP {p.hp}/{p.max_hp} — "
+                             f"{tag} {opp.name} (takes {takes:g}x, its STAB hits {opp.name} {deals:g}x)")
+        if self._history:
+            lines += ["", "Recent battle log (oldest first):"]
+            lines += [f"  - {h}" for h in self._history[-6:]]
+        lines += ["", "Your choice:"]
         return "\n".join(lines)
 
     def _parse(self, reply: str, state: BattleState) -> Action | None:
