@@ -34,29 +34,31 @@ MOVES: dict[str, tuple[float, float, float, float]] = {
 
 # Action menu — the reliable turn start ("A BATTLE  B POKéMON  S RUN"), with both Pokémon
 # panels visible. "bar" is the turn detector. self = the player's Pokémon = BLUE (top-left);
-# opp = RED (bottom-right). The boxes are OS-specific because the two window-capture paths
-# frame differently: macOS screencapture -l includes the title bar; Windows PrintWindow grabs
-# the client area only. `ACTION` below is selected by platform. Recalibrate with
-# scripts/ocr_probe.py if your window aspect differs.
-
-# macOS — calibrated from a live 1194x1228 RetroArch window (title bar included). HP boxes
-# widened on the left so a leading digit can't clip (avoids the 125->25 misread).
-ACTION_MAC: dict[str, tuple[float, float, float, float]] = {
-    "bar":       (0.34, 0.205, 0.52, 0.055),   # BATTLE / POKéMON / RUN bar
-    "self_name": (0.06, 0.255, 0.26, 0.055),   # BLUE, top-left — the player's mon
-    "self_hp":   (0.05, 0.340, 0.30, 0.045),
-    "opp_name":  (0.70, 0.665, 0.26, 0.055),   # RED, bottom-right — the opponent
-    "opp_hp":    (0.67, 0.748, 0.31, 0.045),
+# opp = RED (bottom-right).
+#
+# Boxes are relative to the GAME VIEWPORT (4:3), which capture.py::_crop_to_viewport auto-crops
+# out of the window (title bar + letterbox/pillarbox removed) on BOTH OSes. Verified: the crop
+# holds a ~4:3 viewport (aspect ~1.319) across window sizes AND non-4:3 window shapes, so these
+# ratios need no per-size re-tuning (assumes RetroArch renders 4:3, not stretched).
+#
+# `bar` + `self_*` are anchored to the viewport's top-left and read identically on both OSes.
+# Only `opp_*` — anchored to the RIGHT/BOTTOM edge — lands at different ratios, because the
+# Windows (PrintWindow, client-area) and macOS (screencapture -l, whole-window) crops trim
+# those edges slightly differently. So opp_* is split per platform; the rest is shared.
+_ACTION_SHARED: dict[str, tuple[float, float, float, float]] = {
+    "bar":       (0.35, 0.065, 0.52, 0.060),   # BATTLE / POKéMON / RUN bar
+    "self_name": (0.04, 0.140, 0.28, 0.055),   # BLUE, top-left — the player's mon
+    "self_hp":   (0.05, 0.255, 0.28, 0.045),
 }
-
-# Windows — calibrated from a live 1241x925 client-area capture (Mupen64Plus-Next, Vulkan),
-# validated end-to-end (Squirtle 124/124 vs Meowth 120/120) via Tesseract.
+ACTION_MAC: dict[str, tuple[float, float, float, float]] = {
+    **_ACTION_SHARED,
+    "opp_name":  (0.70, 0.705, 0.28, 0.055),   # RED, bottom-right — macOS (screencapture -l)
+    "opp_hp":    (0.71, 0.820, 0.26, 0.045),
+}
 ACTION_WIN: dict[str, tuple[float, float, float, float]] = {
-    "bar":       (0.306, 0.070, 0.620, 0.049),
-    "self_name": (0.095, 0.146, 0.200, 0.046),   # BLUE, top-left — the player's mon
-    "self_hp":   (0.088, 0.256, 0.185, 0.038),
-    "opp_name":  (0.735, 0.706, 0.185, 0.044),   # RED, bottom-right — the opponent
-    "opp_hp":    (0.735, 0.816, 0.185, 0.038),
+    **_ACTION_SHARED,
+    "opp_name":  (0.752, 0.706, 0.175, 0.042),  # RED, bottom-right — Windows (PrintWindow), live-verified
+    "opp_hp":    (0.75,  0.815, 0.20,  0.050),
 }
 
 ACTION: dict[str, tuple[float, float, float, float]] = (

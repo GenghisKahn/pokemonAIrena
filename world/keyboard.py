@@ -30,6 +30,8 @@ import time
 _MAC_KEYCODES = {
     "a": 7,       # X
     "b": 6,       # Z
+    "l": 12,      # Q  (N64 L shoulder — Stadium: Cancel)
+    "r": 13,      # W  (N64 R shoulder — Stadium: Check)
     "up": 126, "down": 125, "left": 123, "right": 124,
     "start": 36,  # Return
     "select": 60,  # Right Shift
@@ -39,6 +41,8 @@ _MAC_KEYCODES = {
 _WIN_SCANCODES = {
     "a": (0x2D, False),   # X
     "b": (0x2C, False),   # Z
+    "l": (0x10, False),   # Q  (N64 L shoulder — Stadium: Cancel)
+    "r": (0x11, False),   # W  (N64 R shoulder — Stadium: Check)
     "up": (0x48, True), "down": (0x50, True), "left": (0x4B, True), "right": (0x4D, True),
     "start": (0x1C, False),   # Enter
     "select": (0x36, False),  # Right Shift
@@ -59,12 +63,17 @@ class _Keyboard:
     def _up(self, button: str) -> None: ...        # pragma: no cover - per-OS
     def activate(self) -> None: ...                # pragma: no cover - per-OS
 
-    def press(self, button: str, hold: float = 0.05) -> None:
-        """Tap a RetroPad button once (down, brief hold, up)."""
+    def press(self, button: str, hold: float = 0.3) -> None:
+        """Tap a RetroPad button once (down, hold, up).
+
+        The hold is long (0.3s) on purpose: RetroArch reads *core* input by polling a
+        key-state array each frame, so a too-brief synthetic press is missed between polls.
+        Verified live 2026-07-21 — a 50ms hold did nothing; 0.3-0.35s registers. Hotkeys
+        (F1 etc.) are edge-triggered and fire on any hold, but core buttons need this."""
         self._down(button)
         time.sleep(hold)
         self._up(button)
-        time.sleep(0.03)
+        time.sleep(0.05)
 
     def tap_sequence(self, buttons, gap: float = 0.12) -> None:
         """Press several buttons in order (e.g. ['down', 'right', 'a'] to pick a move)."""
@@ -74,15 +83,34 @@ class _Keyboard:
 
 
 class MacKeyboard(_Keyboard):
-    """macOS Quartz CGEvent."""
+    """macOS Quartz CGEvent, posted directly to the RetroArch process.
+
+    Verified live 2026-07-21: a *global* post (CGEventPost to the HID tap) never reaches
+    RetroArch — our own event tap catches the synthetic key but RetroArch ignores it
+    (pause_nonactive + its cocoa driver reads per-window events). Posting to RetroArch's
+    pid with CGEventPostToPid *does* reach it. So we resolve the pid and target it."""
 
     def __init__(self) -> None:
         import Quartz
         self._Q = Quartz
+        self._pid = self._retroarch_pid()
+
+    @staticmethod
+    def _retroarch_pid() -> int | None:
+        try:
+            out = subprocess.check_output(["pgrep", "-x", "RetroArch"]).split()
+            return int(out[0]) if out else None
+        except (subprocess.CalledProcessError, ValueError, IndexError):
+            return None
 
     def _post(self, keycode: int, down: bool) -> None:
         ev = self._Q.CGEventCreateKeyboardEvent(None, keycode, down)
-        self._Q.CGEventPost(self._Q.kCGHIDEventTap, ev)
+        if self._pid is None or self._retroarch_pid() != self._pid:
+            self._pid = self._retroarch_pid()   # RetroArch may have (re)started
+        if self._pid is not None:
+            self._Q.CGEventPostToPid(self._pid, ev)
+        else:                                   # no RetroArch found; fall back to global
+            self._Q.CGEventPost(self._Q.kCGHIDEventTap, ev)
 
     def _key(self, button: str) -> int:
         if button not in _MAC_KEYCODES:

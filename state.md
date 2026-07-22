@@ -2,6 +2,12 @@
 
 _A cold-start briefing: what this is, how it fits together, what works, and what's next._
 
+> **⚠️ For the LIVE current state, read [`HANDOFF.md`](HANDOFF.md)** (authoritative, cross-platform)
+> **and [`PROGRESS.md`](PROGRESS.md)** (the Windows-fork detail). This file describes the original
+> RAM-map design; the project pivoted to a **vision + keyboard** approach on RetroArch. Observe works
+> and is window-size- and aspect-independent on both macOS and Windows; the remaining blocker is the
+> **move-commit key** (how to actually USE a move) — the flow to the move DIAMOND is mapped.
+
 ## What it is
 
 An LLM agent plays **Pokémon Stadium (Gen 1)** battles on an N64 emulator. The

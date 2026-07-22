@@ -2,6 +2,10 @@
 
 ## ⭐ HANDOFF — current live state (read this first)
 
+> See also [`HANDOFF.md`](HANDOFF.md) — the authoritative cross-platform briefing, including
+> upstream's macOS **move-select breakthrough** (`z → cancel/check → hold w → move DIAMOND`) and the
+> non-standard RetroPad→N64 mapping. This PROGRESS file holds the **Windows** detail below.
+
 **Goal right now:** get the vision backend to play ONE real turn against Pokémon Stadium
 on RetroArch. Active work is now on **Windows**, in the fork **pokemonAIrena_kahn**
 (origin github.com/GenghisKahn/pokemonAIrena) — see the **Windows port** section directly
@@ -11,7 +15,7 @@ the macOS-only Apple Vision OCR tests). The macOS notes further down are retaine
 > Env: use the shared venv at `../.venv` (Python 3.14 — has yaml/pytest/pytesseract). The
 > repo dir has no venv of its own. Run tests with `../.venv/Scripts/python.exe -m pytest -q`.
 
-### Windows port (fork: pokemonAIrena_kahn) — OBSERVE live-verified, move-select still blocked
+### Windows port (fork: pokemonAIrena_kahn) — OBSERVE live-verified + size-independent; move flow known, not yet driven
 
 RetroArch on Windows: window class `RetroArch`, title `RetroArch Mupen64Plus-Next 2.8-Vulkan`,
 **Vulkan** renderer, client area ~1241x925.
@@ -41,25 +45,34 @@ already `backend: vision`, `capture: window`, `window: RetroArch`.
   "124" dropped → "14"). Fixed by 5x upscale (`TesseractOCR` default) reading the digit
   reliably; `VisionBackend` already clamps to the KB-derived max, so any over-read (e.g.
   1244) collapses back to the real max. OCR's own max-HP number is unused — the KB owns it.
-- **Layout** — `vision/layout.py`: `ACTION_WIN` calibrated to the live 1241x925 client frame,
-  `ACTION_MAC` preserved; `ACTION` is selected by `sys.platform`. (Windows capture is
-  client-area only — no title bar — so its boxes differ from macOS by design.)
-- **Act path** — `world/keyboard.py::WindowsKeyboard` (SendInput scancodes) already existed;
-  **not yet exercised against the live game** (no keystrokes sent this session).
+- **Viewport crop (adopted from upstream)** — `vision/capture.py::_crop_to_viewport` runs on the
+  Windows PrintWindow output too, trimming title bar + letterbox/pillarbox to the 4:3 game render.
+  **Verified size- and aspect-independent:** the crop holds a ~1.319 viewport and reads correctly
+  across window sizes AND non-4:3 window shapes (assumes RetroArch renders 4:3, black letterbox).
+- **Layout** — `vision/layout.py`: `ACTION` boxes are viewport-relative. `bar`/`self_*` are shared
+  across OSes; only `opp_*` is split (`ACTION_WIN` vs `ACTION_MAC`), because the PrintWindow vs
+  `screencapture -l` crops trim the right/bottom edges differently. Selected by `sys.platform`.
+- **Ported from the upstream repull (c26cf89):** `world/keyboard.py` wholesale (adds `r`/`l`
+  buttons, 0.3s hold — verified identical to upstream) and `observe.py`'s broadened `_HP` regex.
+- **Act path** — `world/keyboard.py::WindowsKeyboard` (SendInput scancodes) exists; **not yet
+  exercised against the live game** (no keystrokes sent yet). Windows input needs neither the
+  mouse-nudge nor the App-Nap workaround the macOS path requires (see HANDOFF.md).
 - Tests: `tests/test_capture.py` gained class-preference + platform-dispatch cases; OCR stubs
   updated for the `mode` arg. 56 pass.
 
-**🚧 BLOCKED (same as macOS):** the move-select flow. Pressing A likely hits an intermediate
-Cancel/Check screen before the 4 moves. Still need: drive `WindowsKeyboard` on the live game
-to map action-menu → moves, then calibrate `vision/layout.py::MOVES` + `world/vision.py::
-_MOVE_KEYS` (the single `press("a")` in `snapshot()` may need to be two). Also unbuilt:
-pre-battle menu nav, battle-end detection (`is_over` always False → bounded by
-`run.max_turns`), switching (`available_switches` empty).
+**🚧 NEXT — the move-select flow (no longer a mystery).** Upstream mapped it on macOS (see
+[`HANDOFF.md`](HANDOFF.md)): action menu → `z` (B) → Cancel/Check screen → **hold `w`** (R/Check)
+→ a move **DIAMOND** (▲/◀/▶/▼ = the 4 moves). The **commit key is still unknown** (upstream's open
+blocker). Windows work: drive this via `WindowsKeyboard` (`z`=B, `w`=R already mapped), read the
+diamond (recalibrate `vision/layout.py::MOVES` to the 4 cells; `world/vision.py::_MOVE_KEYS` →
+directions), and find the commit key. Also unbuilt: pre-battle menu nav, battle-end detection
+(`is_over` always False → bounded by `run.max_turns`), switching (`available_switches` empty).
 
-**Committed** to the fork's `master` as `23b2863` ("Windows vision: PrintWindow capture +
-Tesseract preprocessing, live-calibrated"). Not pushed to origin yet.
+**Committed** to the fork's `master`: `23b2863` (Windows PrintWindow capture + Tesseract
+preprocessing) and `cb59c80` (docs). The upstream-repull merge (viewport crop, `_HP`, keyboard,
+opp per-platform split, HANDOFF.md, size/aspect verification) is a follow-up commit. Not pushed yet.
 
---- macOS handoff (retained) ---
+--- macOS handoff (older; superseded by HANDOFF.md) ---
 
 **Turn model (rewritten):** the harness anchors each turn on the **action menu**
 ("A BATTLE  B POKéMON  S RUN"), reads BOTH Pokémon off the panels, presses A to open the
