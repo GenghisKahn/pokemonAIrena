@@ -12,6 +12,11 @@ world:
     turn_wait: 4.0         # seconds to let a turn animate after a move is confirmed
     menu_wait: 0.6         # seconds to let the move menu animate in after pressing A
     poll: 0.3              # seconds between screen polls while waiting for the next turn
+    end_polls: 40          # consecutive "not on a battle screen" polls before declaring the
+                           # battle over. Was unset -> defaulted to 5 (~1.5s at poll 0.3), which
+                           # a normal attack animation (black transition + cutscene + message
+                           # box) outlasts, so the harness quit mid-battle with winner=None.
+                           # 40 ≈ 12s of continuous off-screen; the result screen persists.
     capture: window        # window (capture RetroArch by identity — move/resize freely) | auto | screencapture | imagegrab
     window: RetroArch      # window-title substring to capture (used when capture: window; macOS)
     ocr: auto              # auto (Vision on macOS, Tesseract elsewhere) | vision | tesseract
@@ -56,15 +61,20 @@ guardrails:
 agent:
   player: llm        # heuristic (deterministic, no API) | llm
   # --- used only when player: llm ---
-  provider: claudecli      # claude (Anthropic API) | llamacpp (local server) | claudecli (Claude Code CLI, no key/server)
-  model: local             # claude: model id (Haiku = low cost) | llamacpp: served name (llama-server ignores)
-  claudecli:               # provider: claudecli -> decisions via `claude -p` (your subscription)
-    command: claude        # the Claude Code CLI on PATH
-    timeout: 60            # seconds per decision (CLI spin-up is slower than the API)
-  max_tokens: 64           # a move pick is one short line
+  provider: llamacpp       # claude (Anthropic API) | llamacpp (local server)
+  model: gemma-4-e2b       # claude: model id (Haiku = low cost) | llamacpp: served name
+  max_tokens: 512          # gemma-4-e2b is a REASONING model — it spends completion tokens on
+                           # `reasoning_content` before emitting the answer. At 64 it never reached
+                           # the answer (finish_reason=length, content='') so EVERY turn silently
+                           # fell back to the heuristic. ~331 observed; 512 leaves headroom.
   llamacpp:                # local llama.cpp server (llama-server), OpenAI-compatible
     host: 127.0.0.1
     port: 8080
+    enable_thinking: false # gemma-4-e2b is a reasoning model; leaving thinking ON cost ~30s
+                           # and truncated 3/13 turns to an empty answer (silent heuristic
+                           # fallback). Off: ~4.6s, 4 tokens, same pick. Omit to leave the
+                           # server's default alone.
+    timeout: 120           # seconds; generous — a slow local decision must not silently fall back
   token_budget: 50000
 
 run:

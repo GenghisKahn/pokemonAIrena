@@ -50,10 +50,12 @@ class _FakeKeyboard:
 
 
 # snapshot() OCRs in this order: the action bar (switch_screen_open short-circuits on a
-# move turn), then panels (self_name, self_hp, opp_name, opp_hp), then the move diamond
-# (move_0..3).
+# move turn), then panels (self_name, self_hp, opp_name, opp_hp), then — after pressing
+# "select" — a re-read of the bar to confirm it cleared (the press-retry check; "" = gone),
+# then the move diamond (move_0..3).
 _BAR = "A BATTLE B POKEMON S RUN"
 _SNAP = [_BAR, "ODDISH", "125 / 125", "CLEFAIRY", "150 / 150",
+         "",
          "Razor Leaf", "Mega Drain", "Sludge", "Body Slam"]
 
 

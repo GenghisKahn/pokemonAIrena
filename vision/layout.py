@@ -69,8 +69,12 @@ ACTION_MAC: dict[str, tuple[float, float, float, float]] = {
 }
 ACTION_WIN: dict[str, tuple[float, float, float, float]] = {
     **_ACTION_SHARED,
-    "opp_name":  (0.752, 0.706, 0.175, 0.042),  # RED, bottom-right — Windows (PrintWindow), live-verified
-    "opp_hp":    (0.75,  0.815, 0.20,  0.050),
+    # RED, bottom-right — Windows (PrintWindow), live-verified. Keep VERTICAL MARGIN around the
+    # text: boxes tight to the glyph tops/bottoms clip them and OCR collapses (a 0.042-high
+    # opp_name read MEOWTH but turned PSYDUCK into 'peyvpiire'; opp_hp read "130/130" as "0/130",
+    # which _mon() would clamp to 0 and mistake for a faint).
+    "opp_name":  (0.752, 0.700, 0.175, 0.055),
+    "opp_hp":    (0.74,  0.810, 0.22,  0.058),
 }
 
 ACTION: dict[str, tuple[float, float, float, float]] = (
