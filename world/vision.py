@@ -118,8 +118,14 @@ class VisionBackend:
         """Reveal the move diamond (Z to open, HOLD Check) and OCR its cells; then Cancel
         back to the action bar so `step` starts clean. Names in slot order (skips empties)."""
         kbd, v = self._keyboard(), self.cfg["world"].get("vision", {})
-        kbd.press("select")                                   # Z: action bar -> pre-commit
-        time.sleep(v.get("menu_wait", 0.6))
+        # "select" is not always delivered (RetroArch drops synthetic presses — the same
+        # reliability rule `step` follows). Retry until the action bar actually goes away,
+        # otherwise we'd OCR the bar itself and read a move named "BATTLE B Pl".
+        for _ in range(int(v.get("act_retries", 4))):
+            kbd.press("select")                               # Z: action bar -> pre-commit
+            time.sleep(v.get("menu_wait", 0.6))
+            if not action_menu_open(self._frame(), self._ocr_engine(), self.kb, _layout.ACTION):
+                break
         kbd._down("check")                                    # hold R/W to show the names
         time.sleep(v.get("menu_wait", 0.6))
         names = read_moves(self._frame(), self._ocr_engine(), self.kb, _layout.MOVES)
