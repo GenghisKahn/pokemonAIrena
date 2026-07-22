@@ -163,8 +163,9 @@ class VisionBackend:
     def _party_view(self, p: dict) -> dict:
         sp = self.kb.species(p["name"])
         max_hp = battle_stats(sp["base"], self.level)["hp"]
-        hp = p.get("hp", max_hp)
-        return {"dex": sp["dex"], "hp": max(0, min(max_hp, hp)), "max_hp": max_hp, "status": None}
+        hp = p.get("hp")
+        hp = 0 if hp is None else max(0, min(max_hp, hp))   # unreadable HP -> treat as fainted
+        return {"dex": sp["dex"], "hp": hp, "max_hp": max_hp, "status": None}
 
     def _build_snapshot(self) -> dict:
         me, opp = self._self, self._opp

@@ -21,24 +21,24 @@ BATTLE: dict[str, tuple[float, float, float, float]] = {
 
 # Move DIAMOND cells, revealed by HOLDING Check (R/W) on the move pre-commit screen.
 # Slot order matches world/vision.py::_SLOT_DIR = (up, right, down, left), so move_0=up,
-# move_1=right, move_2=down, move_3=left. Live layout this session (Squirtle): ▲Up=SURF
-# ◀Left=WITHDRAW ▶Right=ICE BEAM ▼Down=STRENGTH.
-# ⚠️ APPROXIMATE — needs a live calibration pass against a real move-diamond viewport frame
-# (see /tmp/pk_whold_view.png) with scripts/ocr_probe.py before reads are reliable.
+# move_1=right, move_2=down, move_3=left. The move NAME sits beside its direction arrow
+# (▲ top / ◀ mid-left / ▶ mid-right / ▼ bottom). CALIBRATED live 2026-07-22 against
+# Clefairy's diamond (▲DoubleSlap ▶Mega Punch ▼Thunder ◀Metronome) — cells read correctly.
+# NB: reading a mon's real moves needs those moves in kb/moves.json (currently incomplete).
 MOVES: dict[str, tuple[float, float, float, float]] = {
-    "move_0": (0.24, 0.10, 0.24, 0.06),   # up
-    "move_1": (0.45, 0.16, 0.26, 0.06),   # right
-    "move_2": (0.30, 0.22, 0.24, 0.06),   # down
-    "move_3": (0.14, 0.16, 0.24, 0.06),   # left
+    "move_0": (0.35, 0.076, 0.25, 0.045),   # up    (name is left of the ▲ arrow, top row)
+    "move_1": (0.65, 0.133, 0.26, 0.045),   # right (name is right of the ▶ arrow)
+    "move_2": (0.62, 0.213, 0.27, 0.045),   # down  (name is right of the ▼ arrow, bottom row)
+    "move_3": (0.32, 0.163, 0.25, 0.045),   # left  (name is left of the ◀ arrow)
 }
 
 # Party diamond on the forced-switch screen (revealed by HOLDING Check). A vertical list
 # with a ▲/▶/▼ direction icon per entry; DIAMOND-SLOT order top->bottom = up, right, down.
 # Boxes from the live check frame (/tmp/pk_checkheld.png). ⚠️ Calibrate live too.
 PARTY: dict[str, tuple[float, float, float, float]] = {
-    "slot_0_name": (0.28, 0.180, 0.30, 0.045), "slot_0_hp": (0.42, 0.200, 0.22, 0.045),  # up
-    "slot_1_name": (0.28, 0.262, 0.30, 0.045), "slot_1_hp": (0.40, 0.330, 0.24, 0.045),  # right
-    "slot_2_name": (0.28, 0.384, 0.30, 0.045), "slot_2_hp": (0.40, 0.452, 0.24, 0.045),  # down
+    "slot_0_name": (0.30, 0.140, 0.29, 0.042), "slot_0_hp": (0.40, 0.198, 0.24, 0.048),  # up
+    "slot_1_name": (0.30, 0.260, 0.29, 0.042), "slot_1_hp": (0.42, 0.325, 0.20, 0.045),  # right
+    "slot_2_name": (0.30, 0.380, 0.29, 0.045), "slot_2_hp": (0.44, 0.450, 0.18, 0.042),  # down
 }
 
 # Action menu — the reliable turn start ("A BATTLE  B POKéMON  S RUN"), with both

@@ -13,8 +13,8 @@ from kb import KB
 from vision import layout as _layout
 from vision.capture import crop_norm
 
-_HP = re.compile(r"(\d+)\s*[/il|\s]\s*(\d+)")   # tolerate OCR misreads of '/' (incl. dropped
-#                                                to whitespace when OCR splits "105/105" -> "105","105")
+_HP = re.compile(r"(\d+)\s*[/il|\s.]\s*(\d+)")   # tolerate OCR misreads of '/' — as i/l/|, a
+#                            dropped separator ("105 105"), or a period ("0. 130")
 
 _MOVE_SLOTS = ("move_0", "move_1", "move_2", "move_3")
 
@@ -126,12 +126,17 @@ def read_party(img, ocr, kb: KB, regions: dict) -> list[dict]:
         name = match_species(_region_text(img, ocr, regions[f"{slot}_name"]), kb)
         if not name:
             continue
-        hp = _HP.search(_region_text(img, ocr, regions.get(f"{slot}_hp", (0, 0, 0, 0))))
-        out.append({
-            "name": name,
-            "hp": int(hp.group(1)) if hp else None,
-            "max_hp": int(hp.group(2)) if hp else None,
-        })
+        raw = _region_text(img, ocr, regions.get(f"{slot}_hp", (0, 0, 0, 0)))
+        m = _HP.search(raw)
+        if m:
+            hp, max_hp = int(m.group(1)), int(m.group(2))
+        else:
+            # A fainted mon shows "0/124", but Apple Vision reads the leading 0 as the
+            # letter O — catch that so a fainted Pokémon isn't mistaken for a healthy one.
+            fnt = re.search(r"[O0]\s*[/il| .]\s*(\d+)", raw)
+            hp = 0 if fnt else None
+            max_hp = int(fnt.group(1)) if fnt else None
+        out.append({"name": name, "hp": hp, "max_hp": max_hp})
     return out
 
 
