@@ -59,4 +59,5 @@ def read_battle(backend, kb: KB, level: int = 50) -> BattleState:
         available_moves=available_moves,
         available_switches=available_switches,
         awaiting=snap["awaiting"],
+        events=tuple(snap.get("events", ())),
     )

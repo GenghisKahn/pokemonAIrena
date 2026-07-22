@@ -3,6 +3,49 @@
 > **👉 Read [`HANDOFF.md`](HANDOFF.md) first** — it is the authoritative current-state briefing
 > (2026-07-22). The session logs below are the detailed trail; HANDOFF.md is the summary.
 
+## ⭐⭐⭐⭐⭐ SESSION 2026-07-22 (part 4) — `python app.py` ran a FULL BATTLE autonomously (headless Claude CLI)
+
+The autonomous loop drove a complete 9-turn Stadium battle end to end — `app.py` observing, deciding, and
+acting on its own, with every move chosen by `claude -p` (the `claudecli` provider, no API key / no server).
+Result correctly detected: **opponent won** (BLUE's Squirtle→Sandshrew→3rd all fainted; "There's no will to
+fight!"). The agent played sensibly (Surf the Meowth; switch Squirtle→Sandshrew and Earthquake the
+Electric Magnemite for 2×; traded Earthquakes with Cubone) — it lost on matchups/rolls, not bad play.
+
+Two **live-loop bugs** surfaced and were fixed (unit tests don't exercise the real timing):
+1. **`is_over()` false-ended after 1 turn.** The `end_polls` debounce (default 5) counted a normal MOVE
+   ANIMATION (camera zoom hides the panels/bar) as "battle over." Raised the backstop to 40 and documented
+   that `battle_result` (the WIN/LOSE screen) is the real end signal; `max_turns` is the ultimate backstop.
+2. **The game stalled before the first action menu.** RetroArch throttles when the cursor is idle, and the
+   loop's between-turn polls never created the keyboard, so the mouse-mover never started. `reset()` now
+   brings the keyboard up eagerly (`eager_keyboard`, default on) so the mover runs for the whole battle.
+
+Both are config-tunable (`world.vision.end_polls` / `eager_keyboard`). 71 tests pass. This is the app.py
+milestone genuinely done (part 1 won it by hand; this ran it hands-off).
+
+## ⭐⭐⭐⭐⭐ SESSION 2026-07-22 (part 3) — FIRST FULL MATCH **WON**, agent-in-the-loop (CLI-driven, no API)
+
+A complete Pokémon Stadium battle played start → **WIN**, with the Claude Code session itself as the
+brain (no `ANTHROPIC_API_KEY`, no heuristic). Real observe (window capture → OCR) + real act
+(`diamond_select`) through the live `VisionBackend`, one action per tool call.
+
+- **Result: won 1–0** (my Meowth survived at 2 HP). `battle_result` → `"self"`, matching the on-screen
+  `1P=WIN / COM=LOSE` result screen. My team Cubone/Meowth/Oddish (RED) vs Squirtle/Charmander/Bulbasaur (BLUE).
+- **Turn trail:** Cubone Earthquake → lost the exchange; Oddish Petal Dance (2× Grass, locked in) → opp
+  switched Squirtle→Charmander, Oddish fainted to 2× Fire but chipped Charmander; Meowth Take Down KO'd
+  Charmander → Bulbasaur; Take Down ×2 traded to Meowth 2 HP / Bulba 20; **Fury Swipes** (no recoil —
+  Take Down's recoil would self-KO at 2 HP) KO'd Bulbasaur and Meowth *survived*; **Thunder** (2× on
+  Water, the only KO shot vs a full Squirtle) crit → WIN.
+- **Key live lessons:** (1) polling WITHOUT the mouse-mover stalls RetroArch — the between-turns wait must
+  keep the cursor moving (a `MacKeyboard(move_mouse=True)` running is enough). (2) Party-diamond HP OCR
+  misreads a leading `1` (`125`→`25`); the `self_hp`/`opp_hp` action-panel reads are reliable. (3) A
+  full-HP opponent after your mon faints is a NORMAL Gen 1 outcome (0-damage / miss / KO'd-before-acting),
+  not proof of miscalibration — don't halt a working harness to "debug" a real battle result.
+- **This is the `python app.py` milestone, done by hand.** The autonomous loop (`harness/loop.py`) already
+  implements the same observe→decide→gate→act→step cycle; swapping the CLI brain for `agent.player: llm`
+  + `provider: llamacpp` (local `llama-server`) runs it with no code changes — only server + timing tuning.
+  Driver scripts live in scratchpad (`drive.py` one-action-per-call, `waitstate.py` mover-poll to next
+  decision).
+
 ## ⭐⭐⭐⭐⭐ SESSION 2026-07-22 (part 2) — INTEGRATION: macOS work + Windows PR #1 reconciled (`combined_dev`)
 
 Merged the two lines of work into one branch. **PR #1** (Windows: PrintWindow capture, Tesseract OCR,

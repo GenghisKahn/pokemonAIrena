@@ -79,3 +79,74 @@ def test_provider_error_falls_back():
     kb = default_kb()
     player = LLMPlayer(cfg, provider=_FakeProvider(boom=True))
     assert player.decide(state, kb) == HeuristicPlayer().decide(state, kb)
+
+
+from battle.state import Action, BattleState, MoveView, PokemonView
+
+
+def _pv(name, types, hp, max_hp=100, moves=()):
+    stats = {"hp": max_hp, "atk": 100, "def": 100, "spc": 100, "spe": 100}
+    return PokemonView(dex=0, name=name, types=tuple(types), level=50, hp=hp,
+                       max_hp=max_hp, status=None, stats=stats, moves=moves)
+
+
+_SURF = (MoveView("Surf", "water", 95, "special", 100, 15, 0),)
+
+
+def test_prompt_warns_on_bad_matchup_and_shows_switch_matchups():
+    kb = default_kb()
+    me = _pv("Squirtle", ["water"], 100, moves=_SURF)          # water
+    opp = _pv("Magnemite", ["electric"], 100)                  # electric: 2x on water
+    bench = _pv("Sandshrew", ["ground"], 100)                  # ground: immune to electric
+    state = BattleState(me, opp, (bench,), (0,), (0,), "move")
+    prov = _FakeProvider(reply="switch 0")
+    LLMPlayer(_cfg(), provider=prov).decide(state, kb)
+    p = prov.last_prompt
+    assert "WARNING" in p and "super-effective" in p           # active is at a bad matchup
+    assert "switch 0" in p and "RESISTS" in p                  # bench resist is surfaced
+
+
+def test_history_logs_moves_damage_and_effects():
+    kb = default_kb()
+    prov = _FakeProvider(reply="move 0")
+    player = LLMPlayer(_cfg(), provider=prov)
+    me, opp = _pv("Squirtle", ["water"], 100, moves=_SURF), _pv("Magnemite", ["electric"], 100)
+    player.decide(BattleState(me, opp, (), (0,), (), "move"), kb)           # T1: Surf
+    me2, opp2 = _pv("Squirtle", ["water"], 80, moves=_SURF), _pv("Magnemite", ["electric"], 60)
+    player.decide(BattleState(me2, opp2, (), (0,), (), "move",
+                              events=("MAGNEMITE'S DEFENSE ROSE",)), kb)    # T2
+    log = "\n".join(player._history)
+    assert "used Surf" in log                                  # our action recorded
+    assert "took 40" in log and "took 20" in log               # both HP deltas recorded
+    assert "DEFENSE ROSE" in log                               # effect surfaced from events
+
+
+def test_make_provider_builds_claudecli():
+    from agent.providers import ClaudeCliProvider, make_provider
+    p = make_provider({"provider": "claudecli",
+                       "claudecli": {"command": "claude", "timeout": 5}})
+    assert isinstance(p, ClaudeCliProvider)
+    assert p.command == "claude" and p.timeout == 5
+
+
+def test_claudecli_provider_feeds_prompt_on_stdin_and_returns_stdout():
+    import subprocess
+    from unittest.mock import patch
+
+    from agent.providers import ClaudeCliProvider
+
+    class _Res:
+        stdout, stderr = "  move 2\n", ""
+
+    captured = {}
+
+    def _fake_run(cmd, input=None, capture_output=None, text=None, timeout=None):
+        captured["cmd"], captured["input"] = cmd, input
+        return _Res()
+
+    with patch.object(subprocess, "run", _fake_run):
+        out = ClaudeCliProvider(command="claude").complete("SYSTEM RULES", "STATE HERE")
+
+    assert out == "move 2"                                  # stdout, stripped
+    assert captured["cmd"][:2] == ["claude", "-p"]          # headless print mode
+    assert "SYSTEM RULES" in captured["input"] and "STATE HERE" in captured["input"]

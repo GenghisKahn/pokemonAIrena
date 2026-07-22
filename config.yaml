@@ -21,6 +21,21 @@ world:
     window: RetroArch      # window-title substring to capture (used when capture: window; macOS)
     ocr: auto              # auto (Vision on macOS, Tesseract elsewhere) | vision | tesseract
     keyboard: auto         # auto (by platform) | mac (Quartz) | windows (SendInput)
+    read_inventory: true   # at battle start, open the POKéMON screen to read the full team
+                           # roster (bench context for type matchups + voluntary switches)
+    pokemon_button: pokemon  # keymap name for the "POKéMON" action-bar option (party screen)
+    end_polls: 40          # is_over() backstop: consecutive non-battle frames before calling
+                           # the battle over. Must OUTLAST a move animation (which also hides
+                           # the panels); battle_result (WIN/LOSE screen) is the real signal.
+    advance_popups: true   # while idle, tap Z to dismiss blocking message boxes (faint /
+                           # send-out / "no will to fight") so the loop reaches the next
+                           # decision instead of stalling on a popup. Guarded off real menus.
+    advance_button: select # keymap name of the message-advance key (Z on both OS configs)
+    eager_keyboard: true   # bring the keyboard (mouse-mover) up at reset() so the game never
+                           # stalls before the first action menu (RetroArch idle-throttle)
+    track_events: true     # best-effort: OCR the message banner for turn EFFECTS (stat boosts,
+                           # crits, status, effectiveness) -> the agent's battle log. Keyword-
+                           # filtered; recall needs a live calibration of layout.MESSAGE.
   project64:
     host: 127.0.0.1
     port: 8082             # local bridge exposed by the Project64 script

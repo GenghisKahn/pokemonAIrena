@@ -21,7 +21,7 @@ turn loop; the agent proposes a move, a guardrail gate vets it, `send_input()` a
 
 | Layer | State |
 |---|---|
-| Battle core (types, damage, guardrails), mock backend, **64 tests** | ✅ Done & passing |
+| Battle core (types, damage, guardrails), mock backend, **73 tests** | ✅ Done & passing |
 | **Knowledge base** — 151 species base stats + **all 165 Gen 1 moves** | ✅ **Complete** (was 18 moves) |
 | **Observe** (window capture → OCR → both panels + turn detection) | ✅ Solid & window-size-independent |
 | Emulator config (windowed, no-pause, no crash-on-load) | ✅ Fixed & locked |
@@ -29,9 +29,8 @@ turn loop; the agent proposes a move, a guardrail gate vets it, `send_input()` a
 | **Diamond cell calibration** (`MOVES` / `PARTY` boxes) | ✅ **Calibrated live** (reads real moves/party) |
 | **Faint / switch flow** | ✅ Live-verified (auto-switched to a type-correct mon) |
 | **Battle-end + winner detection** (`is_over` / `result`) | ✅ **Done & live-verified** on a real result screen |
-| **A full 3-Pokémon battle, end to end** | ✅ **Played to conclusion** by an auto-player (macOS) |
+| **`python app.py` driven by the *agent*, start to win/loss** | ✅ **DONE** — ran a full 9-turn battle autonomously (headless Claude CLI) |
 | **Windows support** (capture · OCR · input) — merged from PR #1 | ◑ Observe + move-fire live-verified on Windows; not yet driven to a full game |
-| `python app.py` driven by the *agent* (heuristic/LLM), start to win/loss | 🔧 the one remaining live pass |
 
 **Bottom line:** every mechanic is built, tested, and live-verified. An auto-player drove a **complete
 battle** — Squirtle → (fainted) → Sandshrew → (fainted) → Clefairy, KO'd Oddish, lost to Psyduck's crit —
@@ -169,6 +168,84 @@ The vision path now runs on **Windows** too; `sys.platform` selects the OS-speci
     — `dia_up/left/right/down` (live-verified in PR #1).
   Only the open/preview/back keys coincide (both configs put `select`/`check`/`cancel` on Z/W/Q), so those
   keep shared names; the diamond commit is fully separate per OS. Neither map borrows the other's key names.
+
+## Team inventory read at battle start (both OSes)
+
+So the agent has bench context for type matchups and voluntary switches from turn 1 (not only when a
+faint forces a switch), `VisionBackend` reads the full roster once at the first move turn:
+`world/vision.py::_read_inventory()` opens the **POKéMON** action-bar screen (`pokemon` keymap button),
+reveals names+HP (hold Check → `read_party`), drops the active mon, and stores the switchable bench —
+then backs out to the action bar. It's **fail-safe**: any trouble returns `[]` and `_restore_action_menu()`
+cancels back so the turn loop never strands on a sub-menu. Enabled via `world.vision.read_inventory: true`.
+
+OS-agnostic by construction (it goes through the keyboard/OCR interfaces); the only per-OS bit is the
+`pokemon` keycode (`_MAC_KEYCODES`/`_WIN_SCANCODES`, override via `world.vision.pokemon_button`).
+⚠️ **Two things need one live pass per platform:** (1) the `pokemon` keycode is a best guess (macOS: key
+`a`→N64 B; Windows: `0x1E`) — verify it actually opens POKéMON; (2) the party OCR reuses the forced-switch
+`PARTY` boxes, still macOS-calibrated, so the diamond cells want a Windows-crop calibration. Logic is unit-
+tested (bench excludes active; fail-safe restores the menu; read happens once and flows to `available_switches`).
+
+## Autonomous run — `python app.py` (done, headless CLI)
+
+`app.py` ran a **complete 9-turn battle on its own** — the harness observed, decided, and acted with no
+per-turn human input; every move was chosen by Claude via the **`claudecli`** provider. Loop per turn
+(`harness/loop.py`): `awaiting_input()` → `read_battle()` (OCR + KB) → `player.decide()` → gate → `send_input`
+→ `step()` → repeat until `is_over()`. Result correctly detected (`winner: opponent`, matching the on-screen
+LOSE screen). The agent's **moves and types are the decision context** — `LLMPlayer._prompt` feeds each legal
+move's type, power, effectiveness-vs-opponent, and estimated damage, plus both actives' types.
+
+**Providers (`agent/providers.py`, pick via `agent.provider`):** `claude` (Anthropic API, needs a key) ·
+`llamacpp` (local `llama-server`) · **`claudecli`** (shells to `claude -p` — your Claude subscription, no
+key, no server; the way to test the loop on a machine running Claude Code). Config default is `claudecli`.
+
+**Live-loop robustness (found running it for real; unit tests don't exercise timing):**
+- **`is_over()` false-end fix** — a normal move ANIMATION hides the panels/bar, so the old `end_polls=5`
+  debounce mistook it for battle-over (quit after 1 turn). `battle_result` (WIN/LOSE screen) is the real
+  end signal; the debounce backstop is now `end_polls=40`.
+- **`eager_keyboard`** — `reset()` brings the keyboard (mouse-mover) up immediately, so a live game can't
+  stall before the first action menu (RetroArch idle-throttle).
+- **`advance_popups`** — while idle, `_advance_popups()` taps **Z** to dismiss blocking message boxes
+  ("X fainted!" / "Go! Y!" / "no will to fight") so the loop reaches the next decision instead of getting
+  **stuck on a faint popup** before the forced-switch screen. GUARDED by `_input_screen_open()` — it never
+  presses Z when the action bar / pre-commit / forced-switch screen is up (there Z would open the diamond).
+  All three are `world.vision.*` config knobs.
+
+## Agent decision-making (fainted-safe, matchup-aware, battle log)
+
+- **Never selects a fainted Pokémon.** A fainted active (hp 0) is treated as a **forced switch**,
+  never a move turn (`awaiting_input` skips a fainted-active "move" frame; `snapshot` forces the
+  switch path). The just-fainted active is forced to hp 0 in the party read so it's excluded from
+  `available_switches` — **but kept in the party list** so `index → diamond cell` stays aligned (dropping
+  it would shift indices and make the switch pick the wrong/fainted cell). This fixes the loop that got
+  **stuck re-picking a fainted mon** (the game's "There's no will to fight!" is that rejection, NOT an
+  end screen).
+- **Matchup-aware switching.** `LLMPlayer._prompt` now flags when the opponent hits the active
+  super-effectively (`WARNING: …`) and lists each legal switch with its matchup (RESISTS / WEAK to /
+  neutral, plus how its STAB hits the opponent). `_SYSTEM` tells it to switch on a bad matchup instead
+  of always attacking.
+- **Battle log / move history.** `LLMPlayer` keeps a per-battle log — each turn it derives what happened
+  from the state delta (move used, damage dealt/taken, switches) and prepends recent lines to the prompt,
+  so the (stateless per-call) model has memory of the fight.
+- **Effects (best-effort).** `BattleState.events` carries notable message-banner lines; the backend's
+  `_scan_events` OCRs `layout.MESSAGE` for keyword effects (stat **rose/fell**, crit, status, effectiveness)
+  during the turn/popups, keyword-filtered so a mis-framed box gives few false positives. This is how the
+  agent learns e.g. "opponent's DEFENSE rose." ⚠️ Recall needs a live calibration of `layout.MESSAGE`
+  (`track_events` config; HP-delta history works regardless).
+
+## Cross-platform (macOS + Windows) status of the loop features
+
+The whole loop + all three robustness features go through the keyboard/OCR interfaces, so they are
+**OS-agnostic by construction** and run on Windows too. Per-OS specifics and what still needs a live pass:
+- **`advance_popups` / `eager_keyboard` / `is_over`** — logic identical on both; the only OS difference is
+  input delivery (macOS `CGEventPostToPid` + a persistent mouse-mover; Windows `SendInput`). The mouse-mover
+  is macOS-only (it fixes RetroArch's idle-throttle there); on Windows `SendInput` doesn't need it, but
+  whether Windows RetroArch keeps rendering during idle polls is **unverified** — if it throttles, the
+  Windows path needs its own nudge. `advance_button`/`pokemon_button` use shared keymap names resolved
+  per-OS.
+- **Windows still-unverified end-to-end:** `diamond_select`/peek through the harness, the `MOVES`/`PARTY`/
+  inventory OCR on the PrintWindow crop (macOS-calibrated), faint-switch, and `battle_result`. And on
+  Windows, `SendInput` needs the window focused — `activate()` is called at keyboard creation and before
+  the inventory read, but a per-act re-`activate()` may be needed if focus drifts (see Windows-support gaps).
 
 ## Scratch artifacts (in `/tmp`)
 
