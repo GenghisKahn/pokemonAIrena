@@ -52,11 +52,11 @@ def test_read_moves_skips_empty_slots():
 
 def test_unknown_move_raises_with_actionable_message():
     kb = default_kb()
-    ocr = _SlotOCR(["Surf", "Toxic", "", ""])                # Toxic isn't in the KB subset
+    ocr = _SlotOCR(["Surf", "Frobnicate", "", ""])           # not a real Gen 1 move
     with pytest.raises(UnknownMoveError) as exc:
         read_moves(_IMG, ocr, kb)
     msg = str(exc.value)
-    assert "Toxic" in msg and "kb/moves.json" in msg and "move_1" in msg
+    assert "Frobnicate" in msg and "kb/moves.json" in msg and "move_1" in msg
 
 
 def test_menu_open_detects_and_rejects():
