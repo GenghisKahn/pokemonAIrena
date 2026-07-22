@@ -65,6 +65,16 @@ class VisionBackend:
         self._winner: str | None = None        # "self" | "opponent" | None (unknown)
         self._off_screen = 0                   # consecutive non-battle frames (end debounce)
         self._inventory_read = False           # read the full team roster once, at battle start
+        # Bring the keyboard up NOW so its mouse-mover runs for the whole battle. RetroArch
+        # throttles when the cursor is idle, and the harness loop's between-turn polls
+        # (awaiting_input/step) don't otherwise create the keyboard — so a live game can stall
+        # BEFORE the first action menu is ever reached, and the loop waits forever. Eager init
+        # keeps it live. No-op for injected/test keyboards; failures are non-fatal.
+        if self.cfg.get("world", {}).get("vision", {}).get("eager_keyboard", True):
+            try:
+                self._keyboard()
+            except Exception:
+                pass
 
     # ---- dependencies (lazy on real runs) ----------------------------------
     def _ocr_engine(self):
@@ -307,25 +317,29 @@ class VisionBackend:
 
     # ---- close out ---------------------------------------------------------
     def is_over(self) -> bool:
-        """Battle end. Once set, stays set. Otherwise DEBOUNCE on leaving the battle
-        screens: when the game is no longer showing the action bar / a forced switch /
-        both HP panels for `end_polls` consecutive checks, the battle has ended (result
-        screen). ⚠️ Winner is only known for sure in the forced-switch-with-no-party case;
-        the result-SCREEN itself (win vs loss text) still needs a live calibration pass —
-        `max_turns` remains the backstop."""
+        """Battle end. The PRIMARY, reliable signal is `battle_result()` — the WIN/LOSE
+        result screen — checked every call; once seen, the winner is set and stays set.
+
+        The `end_polls` debounce is only a BACKSTOP for when result-screen OCR fails, and
+        it must be conservative: a normal MOVE ANIMATION also leaves the action bar / HP
+        panels for many frames (the camera zooms in on the attack), so a small threshold
+        false-ends the battle mid-turn (observed: end_polls=5 ended a battle after one
+        Surf). So it's set high enough to outlast the longest single animation; a genuine
+        end (the result screen, which persists) is caught by `battle_result` first anyway,
+        and `max_turns` remains the ultimate backstop."""
         if self._done:
             return True
         v = self.cfg["world"].get("vision", {})
         frame, ocr = self._frame(), self._ocr_engine()
-        winner = battle_result(frame, ocr)                 # the WIN/LOSE result screen
+        winner = battle_result(frame, ocr)                 # the WIN/LOSE result screen (primary)
         if winner is not None:
             self._done, self._winner = True, winner
             return True
         if on_battle_screen(frame, ocr, self.kb, _layout.ACTION):
             self._off_screen = 0
-        else:                                              # debounce fallback
+        else:                                              # debounce fallback (backstop only)
             self._off_screen += 1
-            if self._off_screen >= v.get("end_polls", 5):
+            if self._off_screen >= v.get("end_polls", 40):
                 self._done = True
         return self._done
 

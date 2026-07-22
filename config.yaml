@@ -19,6 +19,9 @@ world:
     read_inventory: true   # at battle start, open the POKéMON screen to read the full team
                            # roster (bench context for type matchups + voluntary switches)
     pokemon_button: pokemon  # keymap name for the "POKéMON" action-bar option (party screen)
+    end_polls: 40          # is_over() backstop: consecutive non-battle frames before calling
+                           # the battle over. Must OUTLAST a move animation (which also hides
+                           # the panels); battle_result (WIN/LOSE screen) is the real signal.
   project64:
     host: 127.0.0.1
     port: 8082             # local bridge exposed by the Project64 script

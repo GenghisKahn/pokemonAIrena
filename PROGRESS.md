@@ -3,6 +3,25 @@
 > **👉 Read [`HANDOFF.md`](HANDOFF.md) first** — it is the authoritative current-state briefing
 > (2026-07-22). The session logs below are the detailed trail; HANDOFF.md is the summary.
 
+## ⭐⭐⭐⭐⭐ SESSION 2026-07-22 (part 4) — `python app.py` ran a FULL BATTLE autonomously (headless Claude CLI)
+
+The autonomous loop drove a complete 9-turn Stadium battle end to end — `app.py` observing, deciding, and
+acting on its own, with every move chosen by `claude -p` (the `claudecli` provider, no API key / no server).
+Result correctly detected: **opponent won** (BLUE's Squirtle→Sandshrew→3rd all fainted; "There's no will to
+fight!"). The agent played sensibly (Surf the Meowth; switch Squirtle→Sandshrew and Earthquake the
+Electric Magnemite for 2×; traded Earthquakes with Cubone) — it lost on matchups/rolls, not bad play.
+
+Two **live-loop bugs** surfaced and were fixed (unit tests don't exercise the real timing):
+1. **`is_over()` false-ended after 1 turn.** The `end_polls` debounce (default 5) counted a normal MOVE
+   ANIMATION (camera zoom hides the panels/bar) as "battle over." Raised the backstop to 40 and documented
+   that `battle_result` (the WIN/LOSE screen) is the real end signal; `max_turns` is the ultimate backstop.
+2. **The game stalled before the first action menu.** RetroArch throttles when the cursor is idle, and the
+   loop's between-turn polls never created the keyboard, so the mouse-mover never started. `reset()` now
+   brings the keyboard up eagerly (`eager_keyboard`, default on) so the mover runs for the whole battle.
+
+Both are config-tunable (`world.vision.end_polls` / `eager_keyboard`). 71 tests pass. This is the app.py
+milestone genuinely done (part 1 won it by hand; this ran it hands-off).
+
 ## ⭐⭐⭐⭐⭐ SESSION 2026-07-22 (part 3) — FIRST FULL MATCH **WON**, agent-in-the-loop (CLI-driven, no API)
 
 A complete Pokémon Stadium battle played start → **WIN**, with the Claude Code session itself as the
