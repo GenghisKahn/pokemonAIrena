@@ -11,6 +11,8 @@ matches the emulator viewport.
 """
 from __future__ import annotations
 
+import sys as _sys
+
 # Normalized boxes, top-left origin, relative to the captured battle viewport.
 BATTLE: dict[str, tuple[float, float, float, float]] = {
     "opp_name":  (0.05, 0.07, 0.36, 0.10),
@@ -58,3 +60,12 @@ ACTION: dict[str, tuple[float, float, float, float]] = {
     "opp_name":  (0.70, 0.705, 0.28, 0.055),   # RED, bottom-right — the opponent
     "opp_hp":    (0.71, 0.820, 0.26, 0.045),
 }
+ACTION_WIN: dict[str, tuple[float, float, float, float]] = {
+    **_ACTION_SHARED,
+    "opp_name":  (0.752, 0.706, 0.175, 0.042),  # RED, bottom-right — Windows (PrintWindow), live-verified
+    "opp_hp":    (0.75,  0.815, 0.20,  0.050),
+}
+
+ACTION: dict[str, tuple[float, float, float, float]] = (
+    ACTION_WIN if _sys.platform == "win32" else ACTION_MAC
+)

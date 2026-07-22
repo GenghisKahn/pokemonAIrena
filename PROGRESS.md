@@ -152,8 +152,77 @@ hold in `world/keyboard.py`; opp-panel calibration in `vision/layout.py`. Tests 
 
 ## ⭐ HANDOFF — current live state (read this first)
 
+> See also [`HANDOFF.md`](HANDOFF.md) — the authoritative cross-platform briefing, including
+> upstream's macOS **move-select breakthrough** (`z → cancel/check → hold w → move DIAMOND`) and the
+> non-standard RetroPad→N64 mapping. This PROGRESS file holds the **Windows** detail below.
+
 **Goal right now:** get the vision backend to play ONE real turn against Pokémon Stadium
-on RetroArch (macOS). Everything below the emulator is done and tested (57 tests pass).
+on RetroArch. Active work is now on **Windows**, in the fork **pokemonAIrena_kahn**
+(origin github.com/GenghisKahn/pokemonAIrena) — see the **Windows port** section directly
+below. Everything below the emulator is done and tested (56 pass on Windows; the 3 skips are
+the macOS-only Apple Vision OCR tests). The macOS notes further down are retained for that OS.
+
+> Env: use the shared venv at `../.venv` (Python 3.14 — has yaml/pytest/pytesseract). The
+> repo dir has no venv of its own. Run tests with `../.venv/Scripts/python.exe -m pytest -q`.
+
+### Windows port (fork: pokemonAIrena_kahn) — OBSERVE live-verified + size-independent; move flow known, not yet driven
+
+RetroArch on Windows: window class `RetroArch`, title `RetroArch Mupen64Plus-Next 2.8-Vulkan`,
+**Vulkan** renderer, client area ~1241x925.
+
+**✅ Live-verified end-to-end (production pipeline, not just tests):** at the action menu,
+`read_panels` returns SELF **Squirtle 124/124**, OPP **Meowth 120/120**; `action_menu_open` →
+True. Both species resolve via the KB (→ types/stats). Self current-HP now reads reliably
+(124/124 over a 15-frame run) after the 5x-upscale fix + the KB-max clamp (see self-HP note
+below); a rare transient misread self-heals on the next turn's observe. `config.yaml` is
+already `backend: vision`, `capture: window`, `window: RetroArch`.
+
+**What was built for Windows (our portion of the backend):**
+- **Window capture** — `vision/capture.py::_grab_window_windows`: `PrintWindow`
+  (`PW_CLIENTONLY | PW_RENDERFULLCONTENT`) grabs the window's OWN buffer, so it is
+  **occlusion-independent** (RetroArch can sit behind log/editor windows) and works with the
+  **Vulkan** renderer (plain PrintWindow / ImageGrab-of-screen-rect both fail — the latter
+  grabs whatever is on top). Stdlib ctypes, no new dep. `_pick_hwnd` matches by window
+  **class** first (title-substring fallback) so an Explorer folder named "RetroArch…" can't
+  be captured by mistake.
+- **OCR preprocessing** — `vision/ocr.py::_prep_tesseract` + a `mode` arg on `recognize`:
+  the **RED channel** isolates white text on BOTH the blue (self) and green (opp) panels
+  better than luminance; NEAREST 5x upscale (keeps pixel-font edges) + autocontrast. Modes:
+  `word` (species names: psm 8 + Otsu), `number` (HP: psm 7 + digit/'/' whitelist — stops
+  "124"→"IZ4"), `line` (moves/bar: psm 7). `observe.py` threads the mode per region.
+  Apple Vision ignores the hint, so the macOS path is unchanged.
+- **self-HP read** — the current-HP number was flaky at 4x (the blurry blue-panel "2" in
+  "124" dropped → "14"). Fixed by 5x upscale (`TesseractOCR` default) reading the digit
+  reliably; `VisionBackend` already clamps to the KB-derived max, so any over-read (e.g.
+  1244) collapses back to the real max. OCR's own max-HP number is unused — the KB owns it.
+- **Viewport crop (adopted from upstream)** — `vision/capture.py::_crop_to_viewport` runs on the
+  Windows PrintWindow output too, trimming title bar + letterbox/pillarbox to the 4:3 game render.
+  **Verified size- and aspect-independent:** the crop holds a ~1.319 viewport and reads correctly
+  across window sizes AND non-4:3 window shapes (assumes RetroArch renders 4:3, black letterbox).
+- **Layout** — `vision/layout.py`: `ACTION` boxes are viewport-relative. `bar`/`self_*` are shared
+  across OSes; only `opp_*` is split (`ACTION_WIN` vs `ACTION_MAC`), because the PrintWindow vs
+  `screencapture -l` crops trim the right/bottom edges differently. Selected by `sys.platform`.
+- **Ported from the upstream repull (c26cf89):** `world/keyboard.py` wholesale (adds `r`/`l`
+  buttons, 0.3s hold — verified identical to upstream) and `observe.py`'s broadened `_HP` regex.
+- **Act path** — `world/keyboard.py::WindowsKeyboard` (SendInput scancodes) exists; **not yet
+  exercised against the live game** (no keystrokes sent yet). Windows input needs neither the
+  mouse-nudge nor the App-Nap workaround the macOS path requires (see HANDOFF.md).
+- Tests: `tests/test_capture.py` gained class-preference + platform-dispatch cases; OCR stubs
+  updated for the `mode` arg. 56 pass.
+
+**🚧 NEXT — the move-select flow (no longer a mystery).** Upstream mapped it on macOS (see
+[`HANDOFF.md`](HANDOFF.md)): action menu → `z` (B) → Cancel/Check screen → **hold `w`** (R/Check)
+→ a move **DIAMOND** (▲/◀/▶/▼ = the 4 moves). The **commit key is still unknown** (upstream's open
+blocker). Windows work: drive this via `WindowsKeyboard` (`z`=B, `w`=R already mapped), read the
+diamond (recalibrate `vision/layout.py::MOVES` to the 4 cells; `world/vision.py::_MOVE_KEYS` →
+directions), and find the commit key. Also unbuilt: pre-battle menu nav, battle-end detection
+(`is_over` always False → bounded by `run.max_turns`), switching (`available_switches` empty).
+
+**Committed** to the fork's `master`: `23b2863` (Windows PrintWindow capture + Tesseract
+preprocessing) and `cb59c80` (docs). The upstream-repull merge (viewport crop, `_HP`, keyboard,
+opp per-platform split, HANDOFF.md, size/aspect verification) is a follow-up commit. Not pushed yet.
+
+--- macOS handoff (older; superseded by HANDOFF.md) ---
 
 **Turn model (rewritten):** the harness anchors each turn on the **action menu**
 ("A BATTLE  B POKéMON  S RUN"), reads BOTH Pokémon off the panels, presses A to open the
