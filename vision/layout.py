@@ -19,15 +19,26 @@ BATTLE: dict[str, tuple[float, float, float, float]] = {
     "self_hp":   (0.59, 0.80, 0.36, 0.08),   # your side usually shows numeric HP
 }
 
-# Move-select menu: the four move names, in slot order (index 0-3 == send_input slot).
-# STARTING GUESSES for Stadium's move list — calibrate with:
-#   python scripts/ocr_probe.py --region ... --regions
-# against the move-select screen (not the idle battle frame).
+# Move DIAMOND cells, revealed by HOLDING Check (R/W) on the move pre-commit screen.
+# Slot order matches world/vision.py::_SLOT_DIR = (up, right, down, left), so move_0=up,
+# move_1=right, move_2=down, move_3=left. Live layout this session (Squirtle): ▲Up=SURF
+# ◀Left=WITHDRAW ▶Right=ICE BEAM ▼Down=STRENGTH.
+# ⚠️ APPROXIMATE — needs a live calibration pass against a real move-diamond viewport frame
+# (see /tmp/pk_whold_view.png) with scripts/ocr_probe.py before reads are reliable.
 MOVES: dict[str, tuple[float, float, float, float]] = {
-    "move_0": (0.08, 0.74, 0.40, 0.06),
-    "move_1": (0.08, 0.80, 0.40, 0.06),
-    "move_2": (0.08, 0.86, 0.40, 0.06),
-    "move_3": (0.08, 0.92, 0.40, 0.06),
+    "move_0": (0.24, 0.10, 0.24, 0.06),   # up
+    "move_1": (0.45, 0.16, 0.26, 0.06),   # right
+    "move_2": (0.30, 0.22, 0.24, 0.06),   # down
+    "move_3": (0.14, 0.16, 0.24, 0.06),   # left
+}
+
+# Party diamond on the forced-switch screen (revealed by HOLDING Check). A vertical list
+# with a ▲/▶/▼ direction icon per entry; DIAMOND-SLOT order top->bottom = up, right, down.
+# Boxes from the live check frame (/tmp/pk_checkheld.png). ⚠️ Calibrate live too.
+PARTY: dict[str, tuple[float, float, float, float]] = {
+    "slot_0_name": (0.28, 0.180, 0.30, 0.045), "slot_0_hp": (0.42, 0.200, 0.22, 0.045),  # up
+    "slot_1_name": (0.28, 0.262, 0.30, 0.045), "slot_1_hp": (0.40, 0.330, 0.24, 0.045),  # right
+    "slot_2_name": (0.28, 0.384, 0.30, 0.045), "slot_2_hp": (0.40, 0.452, 0.24, 0.045),  # down
 }
 
 # Action menu — the reliable turn start ("A BATTLE  B POKéMON  S RUN"), with both

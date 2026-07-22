@@ -106,6 +106,35 @@ def action_menu_open(img, ocr, kb: KB, regions: dict | None = None) -> bool:
     return "BATTLE" in text or "RUN" in text or "POK" in text
 
 
+def switch_screen_open(img, ocr, kb: KB, regions: dict | None = None) -> bool:
+    """Forced-switch detector: after a faint the bar shows only "R Check" (no BATTLE/RUN
+    action bar, and no "Cancel" — the switch is mandatory). Distinguishes this from the
+    move pre-commit screen, which shows BOTH "L Cancel" and "R Check"."""
+    R = regions or _layout.ACTION
+    text = _region_text(img, ocr, R["bar"]).upper()
+    return "CHECK" in text and "CANCEL" not in text and "BATTLE" not in text and "RUN" not in text
+
+
+def read_party(img, ocr, kb: KB, regions: dict) -> list[dict]:
+    """Read the forced-switch party diamond (revealed by holding Check) into a list of
+    {name, hp, max_hp}, in DIAMOND-SLOT order (up, right, down, ...) so a slot index maps
+    straight to a D-pad direction. Slots with no resolvable name are dropped (short teams).
+    ⚠️ PARTY cell boxes want a live calibration pass."""
+    out: list[dict] = []
+    slots = sorted(k[:-5] for k in regions if k.endswith("_name"))   # slot_0, slot_1, ...
+    for slot in slots:
+        name = match_species(_region_text(img, ocr, regions[f"{slot}_name"]), kb)
+        if not name:
+            continue
+        hp = _HP.search(_region_text(img, ocr, regions.get(f"{slot}_hp", (0, 0, 0, 0))))
+        out.append({
+            "name": name,
+            "hp": int(hp.group(1)) if hp else None,
+            "max_hp": int(hp.group(2)) if hp else None,
+        })
+    return out
+
+
 def read_screen(img, ocr, kb: KB, regions: dict | None = None) -> dict:
     R = regions or _layout.BATTLE
     self_hp = _HP.search(_region_text(img, ocr, R["self_hp"]))

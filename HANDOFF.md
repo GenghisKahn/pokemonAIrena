@@ -13,18 +13,18 @@ the agent proposes a move, a guardrail gate vets it, `send_input()` actuates it.
 
 | Layer | State |
 |---|---|
-| Battle core (types, damage, KB, guardrails), mock backend, 57 tests | ✅ Done & passing |
+| Battle core (types, damage, KB, guardrails), mock backend, 58 tests | ✅ Done & passing |
 | **Observe** (window capture → OCR → both panels + turn detection) | ✅ **Solid & window-size-independent** |
 | Emulator config (windowed, no-pause, no crash-on-load) | ✅ Fixed & locked |
-| **Input delivery** (reach the game, navigate, reach the move screen) | ✅ Cracked (flaky→reliable via mouse-nudge) |
-| **Move commit** (actually USE a move) | ❌ **THE ONE BLOCKER** — sequence still unknown |
-| Full turn end-to-end, then loop | ⛔ blocked on move commit |
-| Faint/switch, battle-end detection, between-battle nav | ⛔ unbuilt (v1 only attacks) |
+| **Input / move commit / switch** (`z` → C-button "diamond") | ✅ **SOLVED & live-verified** (move fired, switch worked) |
+| **Harness wired for the diamond model** (keyboard + vision backend) | ✅ Implemented, 58 tests pass, imports clean |
+| Live calibration of move/party diamond cells; end-to-end `app.py` | 🔧 needs one live pass |
+| Battle-end detection / turn-completion tuning | 🔧 partial (`_changed` retry in; no win/loss screen yet) |
 
-**Bottom line:** everything up to *selecting/committing a move* works. We can reliably observe both
-Pokémon and drive the game to the move screen. We cannot yet make the Pokémon actually attack — the
-exact key sequence that commits a move is the sole remaining unknown, and needs the user to demo it
-(all guesses tested below failed).
+**Bottom line:** the whole turn is cracked and the harness is built around it. A full turn fires
+(`z`→C-button committed Ice Beam; Squirtle fainted; a type-correct switch to Sandshrew worked). What
+remains is a **live calibration/tuning pass**: dial in the `MOVES`/`PARTY` diamond-cell boxes against
+real diamond frames, add win/loss detection, and run `python app.py` end-to-end.
 
 ---
 
@@ -51,20 +51,20 @@ From RetroArch's *Port 1 Controls* menu (Settings→Input→Port 1 Controls), th
 - key **q** → **L Shoulder**, key **w** → **R Shoulder (Check)**, key **enter** → **Start**
 - N64 **A** (BATTLE) appears bound to *nothing useful on the keyboard* — no single key opened BATTLE.
 
-## Verified in-battle flow (as far as it goes)
+## The turn primitive — "diamond select" (SOLVED, live-verified 2026-07-22)
 
-Action menu (`A BATTLE  B POKéMON  S RUN`, both panels visible) →
-1. **`z`** (keycode 6, retry+nudge) → **cancel/check** screen (`L Cancel  R Check`). Reliable.
-2. **Hold `w`** (keycode 13) → the **move DIAMOND** renders: **▲Up=SURF ◀Left=WITHDRAW ▶Right=ICE BEAM
-   ▼Down=STRENGTH** (name+type+PP per cell). Frame: `/tmp/pk_whold_view.png`.
-3. **??? — COMMIT A MOVE — UNKNOWN.** Tested and FAILED to fire a move: `L`, `x`/`a`/`s` (C-buttons),
-   all four directions, and directions-while-holding-`w`. `L` just cancels back to the action menu.
-   **Ask the user for the exact commit sequence** (e.g. "hold w, tap right, release" — but that
-   specific one was tested and didn't fire). This is the single thing blocking a full turn.
-   - Note: opp HP dropped 105→78 exactly once during a `z`-retry sequence — likely a fluke, unexplained.
+Moves and switches are the SAME mechanic:
+- **To READ options:** `z` (keycode 6) opens the pre-commit screen, then **HOLD `w`/Check** (kc13) to
+  reveal the **diamond**: 4 move cells (▲Surf ◀Withdraw ▶Ice Beam ▼Strength) or, on a forced switch,
+  the party (▲/▶/▼ = your Pokémon). *Holding `w` is for viewing only.*
+- **To COMMIT:** `z` → the **C-button** for the direction. The four moves/party slots ARE the C-buttons:
+  **▲Up=`n`(kc45) · ▼Down=`m`(kc46) · ◀Left=`b`(kc11) · ▶Right=`l`(kc37)**. (This is why "`L` used Ice
+  Beam" — the user meant the **`l` key** = C-right = the ▶Ice Beam cell, not the L shoulder.)
+- **Continuous mouse movement is mandatory** the whole time (see below). Retry until observe confirms.
 
-`enter` (Start) also reaches a *different* cancel/check-like "look at field" screen; holding `w` there
-shows NO diamond. **Use the `z` path, not `enter`.**
+Proven end-to-end: `z`→`l` fired Ice Beam (Magnemite took damage); Squirtle then fainted to Magnemite's
+super-effective Electric; `z`→`m` sent out Sandshrew ("Go! SANDSHREW!"). `enter` (Start) reaches a
+different "look at field" screen — ignore it; use the `z` path.
 
 ---
 
@@ -97,19 +97,25 @@ shows NO diamond. **Use the `z` path, not `enter`.**
 
 ---
 
-## Code changed this session (all UNCOMMITTED — `git status` shows them)
+## Code — the harness now implements the diamond model
 
-- `world/keyboard.py` — `MacKeyboard` now posts via `CGEventPostToPid` (resolves RetroArch pid,
-  re-resolves if it restarts); `press()` default hold 0.05→0.3s. **Still needs: the mouse-nudge +
-  retry logic folded in** (currently only in the `/tmp` scratch scripts).
-- `vision/capture.py` — `_crop_to_viewport()` auto-crops window captures to the 4:3 game render area
-  (drops title bar via "tallest non-black row band" + trims letterbox); wired into `_grab_window`.
-  Makes layout boxes window-size-independent.
-- `vision/layout.py` — `ACTION` boxes recalibrated to VIEWPORT coordinates (from full-window).
-- `vision/observe.py` — `_HP` regex accepts whitespace separator (Apple Vision splits "105/105").
-- `PROGRESS.md`, `state.md` — session notes.
+- **`world/keyboard.py`** — `CGEventPostToPid` delivery; `press()` hold 0.3s; **added the C-button keys
+  `n/m/b/l` + direction map (`_DIR_TO_C`); a persistent MOUSE-MOVER thread** (started in `MacKeyboard.__init__`,
+  runs for the driver's life — the reliability fix); **`diamond_select(direction)`** (Z → C-button) and
+  **`hold(button, dur)`** (Check). (One gotcha handled: pyobjc lazy imports aren't thread-safe — the Quartz
+  symbols the mouse thread uses are force-resolved on the main thread first.)
+- **`world/vision.py`** — rewritten for the diamond model: `awaiting_input` = action-bar OR forced-switch
+  (inferred from prompts); `snapshot` reads panels, then peeks moves (`z`→hold `w`→OCR→cancel) or the party
+  on a forced switch; `step` commits via `diamond_select(slot→direction)` with **retry-until-observed**
+  (`_changed` checks HP/name moved). `_SLOT_DIR = (up,right,down,left)`.
+- **`vision/observe.py`** — added `switch_screen_open` (faint detector) + `read_party`; `_HP` whitespace-tolerant.
+- **`vision/layout.py`** — `ACTION` boxes at viewport coords; `MOVES` = diamond cells; new `PARTY` cells.
+  ⚠️ `MOVES`/`PARTY` boxes are APPROXIMATE — need a live calibration pass.
+- **`vision/capture.py`** — `_crop_to_viewport()` (title bar + letterbox removal) → window-size-independent.
+- **`tests/test_vision_backend.py`** — rewritten for the diamond model.
 
-Tests: **57 pass** after all changes (`python -m pytest -q`).
+Tests: **58 pass**; backend/player construct and all modules import clean. First commit of the earlier
+half (`c26cf89`) is pushed; the diamond-model code above is the follow-up.
 
 ## Scratch artifacts (in `/tmp`, this session)
 
@@ -122,16 +128,20 @@ Tests: **57 pass** after all changes (`python -m pytest -q`).
 
 ## Immediate next steps (in order)
 
-1. **Get the move-commit sequence from the user** (the blocker). Then wire it in and verify one full
-   turn fires (opp HP drops) reliably with the nudge+retry pattern.
-2. **Fold the working input pattern into `world/keyboard.py`** (mouse-nudge in `_down/_up`/`press`,
-   and a retry-until-observed helper) and into `world/vision.py` (`snapshot()` / `_MOVE_KEYS` for the
-   diamond: slot→direction or whatever the commit turns out to be).
-3. **Calibrate `vision/layout.py::MOVES`** to the diamond cells and build `read_moves` for the diamond
-   so the agent can pick the best move (not just one hardcoded button).
-4. Loop turns (retry-until-effect) → then build **turn-completion + faint/switch + battle-end**
-   detection for a full game.
-5. Solve reliable **relaunch-into-battle** (menu "Run" activation) so crashes can auto-recover.
+1. **Live-calibrate the diamond cell boxes.** Get a real move-diamond viewport frame (`z`→hold `w`) and
+   a party frame, OCR them (`scripts/ocr_probe.py`), and set `vision/layout.py::MOVES` (up/right/down/left)
+   and `PARTY` so `read_moves`/`read_party` read cleanly. The `MOVES`/`PARTY` boxes shipped are estimates.
+2. **Run `python app.py` end-to-end** against a live battle at the action menu. Watch for: moves reading,
+   the agent's pick, `diamond_select` firing, `_changed` confirming, and the forced-switch path. Tune
+   `turn_wait` / `act_retries` / the peek timing.
+3. **Battle-end detection** — `is_over()` currently returns `_done` (never set). Add a win/loss-screen
+   detector (all 3 fainted / result screen) so a battle terminates instead of hitting `max_turns`.
+4. Verify **switch peeking** (`read_party` slot→direction) matches the on-screen party order; confirm
+   the fainted-active-in-slot-0 index model against `available_switches`.
+5. Solve reliable **relaunch-into-battle** (menu "Run" activation) so crashes can auto-recover unattended.
+
+**Live-session preamble every time:** launch RetroArch → History → Run the ROM → get to a battle action
+menu → F2 (save state). Keep the RetroArch window a normal size (viewport crop handles the rest).
 
 ## What's solid and needs no rework
 
