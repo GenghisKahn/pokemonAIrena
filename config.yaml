@@ -41,8 +41,8 @@ guardrails:
 agent:
   player: llm        # heuristic (deterministic, no API) | llm
   # --- used only when player: llm ---
-  provider: claude         # claude (Anthropic API) | llamacpp (local server)
-  model: claude-haiku-4-5  # claude: model id (Haiku = low cost) | llamacpp: served name
+  provider: llamacpp       # claude (Anthropic API) | llamacpp (local server, no API key/cost)
+  model: local             # claude: model id (Haiku = low cost) | llamacpp: served name (llama-server ignores)
   max_tokens: 64           # a move pick is one short line
   llamacpp:                # local llama.cpp server (llama-server), OpenAI-compatible
     host: 127.0.0.1

@@ -32,8 +32,9 @@ from battle.state import Action
 from kb import default_kb
 from vision import layout as _layout
 from vision.capture import capture_region
-from vision.observe import (action_menu_open, battle_result, on_battle_screen,
-                            read_moves, read_panels, read_party, switch_screen_open)
+from vision.observe import (_region_text, action_menu_open, battle_result,
+                            on_battle_screen, read_moves, read_panels, read_party,
+                            switch_screen_open)
 
 # Diamond slot -> D-pad direction (the C-button the actuator presses). Fixed order so a
 # slot index the agent chose maps to one deterministic direction.
@@ -196,9 +197,37 @@ class VisionBackend:
             idx = self._self["moves"][idx]["slot"]
         return _SLOT_DIR[idx % 4]
 
+    def _input_screen_open(self, frame) -> bool:
+        """True while the game is still asking US to choose — the action bar
+        (BATTLE/RUN), the pre-commit Cancel/Check screen, or a forced-switch prompt
+        (R Check). The instant a commit is ACCEPTED the game leaves all of these to
+        animate the turn, so this dropping to False is the real "input landed" signal
+        (independent of whether the move dealt damage)."""
+        ocr = self._ocr_engine()
+        bar = _region_text(frame, ocr, _layout.ACTION["bar"]).upper()
+        return any(k in bar for k in ("BATTLE", "RUN", "POK", "CANCEL", "CHECK"))
+
+    def _await_commit(self, before: dict) -> bool:
+        """Confirm the diamond_select was accepted. A 0-damage/status move or a miss
+        never moves HP, so we DON'T wait for an HP change — we wait for the game to
+        leave the input screens (or, as a bonus signal, for a panel change). Polls a
+        short window; False means we're still on an input screen -> the press dropped."""
+        v = self.cfg["world"].get("vision", {})
+        ocr = self._ocr_engine()
+        for _ in range(v.get("confirm_polls", 8)):
+            time.sleep(v.get("confirm_gap", 0.5))
+            frame = self._frame()
+            if not self._input_screen_open(frame):
+                return True
+            if self._changed(before, read_panels(frame, ocr, self.kb, _layout.ACTION)):
+                return True
+        return False
+
     def step(self) -> None:
         """Commit the queued move/switch via the diamond primitive, retrying until the
-        screen changes (input is flaky). With nothing queued, poll-sleep."""
+        input is ACCEPTED (we leave the input screens), not merely until HP moves — a
+        status move / miss / 0-damage hit must still count as committed. With nothing
+        queued, poll-sleep."""
         v = self.cfg["world"].get("vision", {})
         action, self.pending = self.pending, None
         if action is None:
@@ -208,11 +237,17 @@ class VisionBackend:
         kbd, ocr = self._keyboard(), self._ocr_engine()
         before = read_panels(self._frame(), ocr, self.kb, _layout.ACTION)
         for _ in range(v.get("act_retries", 5)):
+            # A dropped direction can leave a MOVE stuck on the pre-commit screen; back
+            # out to the action bar so the retry starts from a known state. (A forced
+            # switch has no Cancel and its own screen, so don't touch it.)
+            if action.kind == "move" and not action_menu_open(
+                    self._frame(), ocr, self.kb, _layout.ACTION):
+                kbd.press("cancel")
+                time.sleep(v.get("menu_wait", 0.6))
             kbd.diamond_select(direction)
-            time.sleep(v.get("turn_wait", 4.0))
-            after = read_panels(self._frame(), ocr, self.kb, _layout.ACTION)
-            if self._changed(before, after):                  # committed -> turn resolved
+            if self._await_commit(before):                    # input accepted -> turn is resolving
                 break
+        time.sleep(v.get("turn_wait", 4.0))                   # let the turn animate out
         self._self["moves"] = [] if action.kind == "switch" else self._self["moves"]
 
     @staticmethod

@@ -17,7 +17,8 @@ def _cfg():
     with open("config.yaml", encoding="utf-8") as f:
         c = yaml.safe_load(f)
     c["world"]["vision"].update({"menu_wait": 0, "turn_wait": 0, "poll": 0,
-                                 "act_retries": 1, "end_polls": 2})
+                                 "act_retries": 1, "end_polls": 2,
+                                 "confirm_gap": 0, "confirm_polls": 2})
     return c
 
 
@@ -97,6 +98,42 @@ def test_move_action_commits_via_diamond_select():
     b.send_action(Action("move", 2))              # slot 2 -> down (index 2 in up,right,down,left)
     b.step()
     assert kb.selects[-1] == "down"
+
+
+class _FixedOCR:
+    """Every recognize() returns one fixed token — used to pin the bar/panel text."""
+    def __init__(self, text): self.text = text
+
+    def recognize(self, _img, _mode="line"):
+        from vision.ocr import OCRResult
+        return [OCRResult(self.text, 0.9, (0.0, 0.0, 1.0, 1.0))]
+
+
+def test_input_screen_open_true_on_menus_false_on_resolution():
+    b = _backend([""])
+    for bar in ("A BATTLE B POKEMON S RUN", "L CANCEL  R CHECK", "R CHECK"):
+        b._ocr = _FixedOCR(bar)
+        assert b._input_screen_open(b._frame()) is True     # still awaiting our input
+    b._ocr = _FixedOCR("")
+    assert b._input_screen_open(b._frame()) is False        # left the menus -> turn resolving
+
+
+def test_await_commit_true_when_input_screen_clears_without_hp_change():
+    # A status move / miss never moves HP; leaving the input screen is enough proof.
+    b = _backend([""])
+    b._ocr = _FixedOCR("")                                  # empty bar = resolving
+    before = {"self": {"name": "Oddish", "hp": 50, "max_hp": 50},
+              "opp": {"name": "Squirtle", "hp": 50, "max_hp": 50}}
+    assert b._await_commit(before) is True
+
+
+def test_await_commit_false_while_stuck_on_precommit_screen():
+    # A dropped direction leaves us on the Cancel/Check screen; not committed -> retry.
+    b = _backend([""])
+    b._ocr = _FixedOCR("L CANCEL  R CHECK")
+    before = {"self": {"name": "Oddish", "hp": 50, "max_hp": 50},
+              "opp": {"name": "Squirtle", "hp": 50, "max_hp": 50}}
+    assert b._await_commit(before) is False
 
 
 def test_still_on_battle_screen_is_not_over():
