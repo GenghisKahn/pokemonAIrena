@@ -77,8 +77,10 @@ ACTION: dict[str, tuple[float, float, float, float]] = (
     ACTION_WIN if _sys.platform == "win32" else ACTION_MAC
 )
 
-# The battle MESSAGE box (top-center blue banner) — "X's DEFENSE rose!", "Critical hit!",
-# "It's super effective!", "There's no will to fight!". Used (best-effort) to surface turn
-# EFFECTS into the agent's battle log. ⚠️ APPROXIMATE — a live calibration pass improves recall;
-# a keyword filter keeps false positives low even when the box is mis-framed.
-MESSAGE: tuple[float, float, float, float] = (0.28, 0.06, 0.68, 0.15)
+# The battle MESSAGE banner — the wide box across the BOTTOM ("MAGNEMITE used SUPERSONIC!",
+# "X's DEFENSE rose!", "It's super effective!", "It became confused!", "Enough! Come back!").
+# Used (best-effort) to surface turn EFFECTS into the agent's battle log. Live-calibrated
+# 2026-07-22 against real message frames (text sits at y≈0.77, x≈0.14, spanning most of the
+# width). ("Critical hit!" is a separate top-corner popup, not caught here.) A keyword filter
+# keeps false positives low.
+MESSAGE: tuple[float, float, float, float] = (0.13, 0.76, 0.74, 0.08)
